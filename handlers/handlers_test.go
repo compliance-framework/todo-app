@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -525,6 +526,554 @@ func Test_REQ04_N_004_DeleteTodoUnauthenticated(t *testing.T) {
 	user := createTestUser(t, "testuser", "password123")
 	todo := models.Todo{Title: "Test Todo", UserID: user.ID}
 	db.GetDB().Create(&todo)
+
+	req, _ := http.NewRequest("DELETE", "/api/todos/1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+// =============================================================================
+// Additional Edge Case Tests for 100% Coverage
+// =============================================================================
+
+// Test_REQ03_N_002_GetTodoInvalidID verifies invalid todo ID returns bad request
+func Test_REQ03_N_002_GetTodoInvalidID(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	req, _ := http.NewRequest("GET", "/api/todos/invalid", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+// Test_REQ04_N_005_UpdateTodoInvalidID verifies invalid todo ID returns bad request
+func Test_REQ04_N_005_UpdateTodoInvalidID(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	user := createTestUser(t, "testuser", "password123")
+	token := getAuthToken(t, user.ID, user.Username)
+
+	updateReq := UpdateTodoRequest{
+		Title: "Updated Title",
+	}
+	body, _ := json.Marshal(updateReq)
+
+	req, _ := http.NewRequest("PUT", "/api/todos/invalid", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+// Test_REQ04_N_006_UpdateNonexistentTodo verifies updating non-existent todo returns not found
+func Test_REQ04_N_006_UpdateNonexistentTodo(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	user := createTestUser(t, "testuser", "password123")
+	token := getAuthToken(t, user.ID, user.Username)
+
+	updateReq := UpdateTodoRequest{
+		Title: "Updated Title",
+	}
+	body, _ := json.Marshal(updateReq)
+
+	req, _ := http.NewRequest("PUT", "/api/todos/999", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected status %d, got %d", http.StatusNotFound, w.Code)
+	}
+}
+
+// Test_REQ04_N_007_DeleteTodoInvalidID verifies invalid todo ID returns bad request
+func Test_REQ04_N_007_DeleteTodoInvalidID(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	user := createTestUser(t, "testuser", "password123")
+	token := getAuthToken(t, user.ID, user.Username)
+
+	req, _ := http.NewRequest("DELETE", "/api/todos/invalid", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+// Test_REQ04_N_008_DeleteNonexistentTodo verifies deleting non-existent todo returns not found
+func Test_REQ04_N_008_DeleteNonexistentTodo(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	user := createTestUser(t, "testuser", "password123")
+	token := getAuthToken(t, user.ID, user.Username)
+
+	req, _ := http.NewRequest("DELETE", "/api/todos/999", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected status %d, got %d", http.StatusNotFound, w.Code)
+	}
+}
+
+// Test_REQ01_N_004_LoginInvalidJSON verifies login fails with invalid JSON
+func Test_REQ01_N_004_LoginInvalidJSON(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	req, _ := http.NewRequest("POST", "/api/login", bytes.NewBuffer([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+// Test_REQ01_N_005_RegisterInvalidJSON verifies registration fails with invalid JSON
+func Test_REQ01_N_005_RegisterInvalidJSON(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	req, _ := http.NewRequest("POST", "/api/register", bytes.NewBuffer([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+// Test_REQ02_N_003_CreateTodoInvalidJSON verifies create todo fails with invalid JSON
+func Test_REQ02_N_003_CreateTodoInvalidJSON(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	user := createTestUser(t, "testuser", "password123")
+	token := getAuthToken(t, user.ID, user.Username)
+
+	req, _ := http.NewRequest("POST", "/api/todos", bytes.NewBuffer([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+// Test_REQ04_P_003_UpdateTodoCompleted verifies updating todo completed status
+func Test_REQ04_P_003_UpdateTodoCompleted(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	user := createTestUser(t, "testuser", "password123")
+	token := getAuthToken(t, user.ID, user.Username)
+
+	todo := models.Todo{Title: "Test Todo", UserID: user.ID, Completed: false}
+	db.GetDB().Create(&todo)
+
+	completed := true
+	updateReq := UpdateTodoRequest{
+		Completed: &completed,
+	}
+	body, _ := json.Marshal(updateReq)
+
+	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var updatedTodo models.Todo
+	json.Unmarshal(w.Body.Bytes(), &updatedTodo)
+
+	if !updatedTodo.Completed {
+		t.Error("Expected todo to be completed")
+	}
+}
+
+// Test_REQ04_P_004_UpdateTodoDescription verifies updating todo description
+func Test_REQ04_P_004_UpdateTodoDescription(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	user := createTestUser(t, "testuser", "password123")
+	token := getAuthToken(t, user.ID, user.Username)
+
+	todo := models.Todo{Title: "Test Todo", Description: "Original", UserID: user.ID}
+	db.GetDB().Create(&todo)
+
+	updateReq := UpdateTodoRequest{
+		Description: "Updated Description",
+	}
+	body, _ := json.Marshal(updateReq)
+
+	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var updatedTodo models.Todo
+	json.Unmarshal(w.Body.Bytes(), &updatedTodo)
+
+	if updatedTodo.Description != "Updated Description" {
+		t.Errorf("Expected description 'Updated Description', got '%s'", updatedTodo.Description)
+	}
+}
+
+// Test_REQ04_N_009_UpdateTodoInvalidJSON verifies update todo fails with invalid JSON
+func Test_REQ04_N_009_UpdateTodoInvalidJSON(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	user := createTestUser(t, "testuser", "password123")
+	token := getAuthToken(t, user.ID, user.Username)
+
+	todo := models.Todo{Title: "Test Todo", UserID: user.ID}
+	db.GetDB().Create(&todo)
+
+	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+// =============================================================================
+// Database Error Tests (using closed DB connection)
+// =============================================================================
+
+// Test_REQ03_E_002_ListTodosDBError verifies ListTodos handles DB error
+func Test_REQ03_E_002_ListTodosDBError(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	// Close the underlying SQL connection to force an error
+	sqlDB, _ := db.GetDB().DB()
+	sqlDB.Close()
+
+	req, _ := http.NewRequest("GET", "/api/todos", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+
+	// Re-initialize DB for other tests
+	setupTestDB(t)
+}
+
+// Test_REQ02_E_001_CreateTodoDBError verifies CreateTodo handles DB error
+func Test_REQ02_E_001_CreateTodoDBError(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	user := createTestUser(t, "testuser", "password123")
+	token := getAuthToken(t, user.ID, user.Username)
+
+	// Rename the todos table to cause create to fail
+	db.GetDB().Exec("ALTER TABLE todos RENAME TO todos_backup")
+	db.GetDB().Exec("CREATE VIEW todos AS SELECT * FROM todos_backup")
+
+	todoReq := CreateTodoRequest{
+		Title: "Test Todo",
+	}
+	body, _ := json.Marshal(todoReq)
+
+	req, _ := http.NewRequest("POST", "/api/todos", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+
+	// Re-initialize DB for other tests
+	setupTestDB(t)
+}
+
+// Test_REQ04_E_001_UpdateTodoDBErrorOnSave verifies UpdateTodo handles DB error on save
+func Test_REQ04_E_001_UpdateTodoDBErrorOnSave(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	user := createTestUser(t, "testuser", "password123")
+	token := getAuthToken(t, user.ID, user.Username)
+
+	todo := models.Todo{Title: "Test Todo", UserID: user.ID}
+	db.GetDB().Create(&todo)
+
+	// Rename the todos table to cause save to fail but allow read
+	db.GetDB().Exec("ALTER TABLE todos RENAME TO todos_backup")
+	db.GetDB().Exec("CREATE VIEW todos AS SELECT * FROM todos_backup")
+
+	updateReq := UpdateTodoRequest{
+		Title: "Updated Title",
+	}
+	body, _ := json.Marshal(updateReq)
+
+	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Should be InternalServerError (can't update a view)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+
+	// Re-initialize DB for other tests
+	setupTestDB(t)
+}
+
+// Test_REQ04_E_002_DeleteTodoDBErrorOnDelete verifies DeleteTodo handles DB error on delete
+func Test_REQ04_E_002_DeleteTodoDBErrorOnDelete(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	user := createTestUser(t, "testuser", "password123")
+	token := getAuthToken(t, user.ID, user.Username)
+
+	todo := models.Todo{Title: "Test Todo", UserID: user.ID}
+	db.GetDB().Create(&todo)
+
+	// Rename the todos table to cause delete to fail but allow read
+	db.GetDB().Exec("ALTER TABLE todos RENAME TO todos_backup")
+	db.GetDB().Exec("CREATE VIEW todos AS SELECT * FROM todos_backup")
+
+	req, _ := http.NewRequest("DELETE", "/api/todos/1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Should be InternalServerError (can't delete from a view)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+
+	// Re-initialize DB for other tests
+	setupTestDB(t)
+}
+
+// Test_REQ01_E_001_RegisterDBError verifies Register handles DB error on create
+func Test_REQ01_E_001_RegisterDBError(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	// Rename the users table to cause create to fail but allow check
+	db.GetDB().Exec("ALTER TABLE users RENAME TO users_backup")
+	db.GetDB().Exec("CREATE VIEW users AS SELECT * FROM users_backup")
+
+	registerReq := RegisterRequest{
+		Username: "newuser",
+		Password: "password123",
+	}
+	body, _ := json.Marshal(registerReq)
+
+	req, _ := http.NewRequest("POST", "/api/register", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+
+	// Re-initialize DB for other tests
+	setupTestDB(t)
+}
+
+// Test_REQ01_E_002_LoginDBError verifies Login handles DB error
+func Test_REQ01_E_002_LoginDBError(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	// Close the underlying SQL connection to force an error
+	sqlDB, _ := db.GetDB().DB()
+	sqlDB.Close()
+
+	loginReq := LoginRequest{
+		Username: "testuser",
+		Password: "password123",
+	}
+	body, _ := json.Marshal(loginReq)
+
+	req, _ := http.NewRequest("POST", "/api/login", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Should return Unauthorized since user can't be found
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+
+	// Re-initialize DB for other tests
+	setupTestDB(t)
+}
+
+// =============================================================================
+// Mock-based Error Tests
+// =============================================================================
+
+// Test_REQ01_E_003_RegisterHashPasswordError verifies Register handles hash password error
+func Test_REQ01_E_003_RegisterHashPasswordError(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	// Mock HashPassword to return an error
+	originalFunc := auth.HashPasswordFunc
+	auth.HashPasswordFunc = func(password string) (string, error) {
+		return "", errors.New("mock hash error")
+	}
+	defer func() { auth.HashPasswordFunc = originalFunc }()
+
+	registerReq := RegisterRequest{
+		Username: "newuser",
+		Password: "password123",
+	}
+	body, _ := json.Marshal(registerReq)
+
+	req, _ := http.NewRequest("POST", "/api/register", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+// Test_REQ01_E_004_LoginGenerateTokenError verifies Login handles token generation error
+func Test_REQ01_E_004_LoginGenerateTokenError(t *testing.T) {
+	setupTestDB(t)
+	router := setupRouter()
+
+	// Create a test user
+	createTestUser(t, "testuser", "password123")
+
+	// Mock GenerateToken to return an error
+	originalFunc := auth.GenerateTokenFunc
+	auth.GenerateTokenFunc = func(userID uint, username string) (string, error) {
+		return "", errors.New("mock token error")
+	}
+	defer func() { auth.GenerateTokenFunc = originalFunc }()
+
+	loginReq := LoginRequest{
+		Username: "testuser",
+		Password: "password123",
+	}
+	body, _ := json.Marshal(loginReq)
+
+	req, _ := http.NewRequest("POST", "/api/login", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+// Test_REQ02_E_002_CreateTodoNoUserInContext verifies CreateTodo handles missing user in context
+func Test_REQ02_E_002_CreateTodoNoUserInContext(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	// Create a router WITHOUT auth middleware to test the handler directly
+	router := gin.New()
+	router.POST("/api/todos", CreateTodo)
+
+	todoReq := CreateTodoRequest{
+		Title: "Test Todo",
+	}
+	body, _ := json.Marshal(todoReq)
+
+	req, _ := http.NewRequest("POST", "/api/todos", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+// Test_REQ04_E_003_UpdateTodoNoUserInContext verifies UpdateTodo handles missing user in context
+func Test_REQ04_E_003_UpdateTodoNoUserInContext(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	// Create a router WITHOUT auth middleware
+	router := gin.New()
+	router.PUT("/api/todos/:id", UpdateTodo)
+
+	updateReq := UpdateTodoRequest{
+		Title: "Updated Title",
+	}
+	body, _ := json.Marshal(updateReq)
+
+	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+// Test_REQ04_E_004_DeleteTodoNoUserInContext verifies DeleteTodo handles missing user in context
+func Test_REQ04_E_004_DeleteTodoNoUserInContext(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	// Create a router WITHOUT auth middleware
+	router := gin.New()
+	router.DELETE("/api/todos/:id", DeleteTodo)
 
 	req, _ := http.NewRequest("DELETE", "/api/todos/1", nil)
 	w := httptest.NewRecorder()

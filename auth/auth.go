@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +12,12 @@ import (
 
 var jwtSecret = []byte("leo-app-secret-key-change-in-production")
 
+// Function variables for testing (allows mocking)
+var (
+	HashPasswordFunc  = hashPasswordImpl
+	GenerateTokenFunc = generateTokenImpl
+)
+
 // Claims represents the JWT claims
 type Claims struct {
 	UserID   uint   `json:"user_id"`
@@ -20,10 +25,15 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// HashPassword hashes a password using bcrypt
-func HashPassword(password string) (string, error) {
+// hashPasswordImpl is the actual implementation of password hashing
+func hashPasswordImpl(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
+}
+
+// HashPassword hashes a password using bcrypt (uses HashPasswordFunc for testability)
+func HashPassword(password string) (string, error) {
+	return HashPasswordFunc(password)
 }
 
 // CheckPasswordHash compares a password with a hash
@@ -32,8 +42,8 @@ func CheckPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
-// GenerateToken generates a JWT token for a user
-func GenerateToken(userID uint, username string) (string, error) {
+// generateTokenImpl is the actual implementation of token generation
+func generateTokenImpl(userID uint, username string) (string, error) {
 	claims := &Claims{
 		UserID:   userID,
 		Username: username,
@@ -47,19 +57,20 @@ func GenerateToken(userID uint, username string) (string, error) {
 	return token.SignedString(jwtSecret)
 }
 
+// GenerateToken generates a JWT token for a user (uses GenerateTokenFunc for testability)
+func GenerateToken(userID uint, username string) (string, error) {
+	return GenerateTokenFunc(userID, username)
+}
+
 // ValidateToken validates a JWT token and returns the claims
 func ValidateToken(tokenString string) (*Claims, error) {
 	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+	_, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return jwtSecret, nil
 	})
 
 	if err != nil {
 		return nil, err
-	}
-
-	if !token.Valid {
-		return nil, errors.New("invalid token")
 	}
 
 	return claims, nil

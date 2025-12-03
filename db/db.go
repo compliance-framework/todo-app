@@ -8,6 +8,11 @@ import (
 
 var DB *gorm.DB
 
+// AutoMigrateFunc is the function used for auto-migration (can be mocked for testing)
+var AutoMigrateFunc = func(db *gorm.DB) error {
+	return db.AutoMigrate(&models.User{}, &models.Todo{})
+}
+
 // InitDB initializes the database connection and runs migrations
 func InitDB(dbPath string) error {
 	var err error
@@ -17,7 +22,7 @@ func InitDB(dbPath string) error {
 	}
 
 	// Auto-migrate the schema
-	err = DB.AutoMigrate(&models.User{}, &models.Todo{})
+	err = AutoMigrateFunc(DB)
 	if err != nil {
 		return err
 	}
@@ -28,4 +33,9 @@ func InitDB(dbPath string) error {
 // GetDB returns the database instance
 func GetDB() *gorm.DB {
 	return DB
+}
+
+// SetDB sets the database instance (useful for testing)
+func SetDB(database *gorm.DB) {
+	DB = database
 }

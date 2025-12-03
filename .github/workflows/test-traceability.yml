@@ -1,0 +1,88 @@
+name: Test Traceability Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  traceability:
+    name: Verify Test Traceability
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Extract test names from code
+        id: extract-tests
+        run: |
+          # Find all test functions in *_test.go files
+          echo "Extracting test functions from code..."
+          find . -name "*_test.go" -exec grep -h "^func Test_" {} \; | \
+            sed 's/func \(Test_[^(]*\).*/\1/' | \
+            sort -u > /tmp/code_tests.txt
+          
+          echo "Found $(wc -l < /tmp/code_tests.txt) tests in code"
+          cat /tmp/code_tests.txt
+
+      - name: Extract test names from traceability matrix
+        id: extract-trace
+        run: |
+          # Extract test names from TEST_REQUIREMENT_TRACE.md
+          echo "Extracting test functions from traceability matrix..."
+          grep -oE 'Test_[A-Za-z0-9_]+' TEST_REQUIREMENT_TRACE.md | \
+            sort -u > /tmp/trace_tests.txt
+          
+          echo "Found $(wc -l < /tmp/trace_tests.txt) tests in traceability matrix"
+          cat /tmp/trace_tests.txt
+
+      - name: Compare tests
+        run: |
+          echo "=== Tests in code but NOT in traceability matrix ==="
+          comm -23 /tmp/code_tests.txt /tmp/trace_tests.txt > /tmp/missing_in_trace.txt
+          
+          if [ -s /tmp/missing_in_trace.txt ]; then
+            echo "❌ The following tests are missing from TEST_REQUIREMENT_TRACE.md:"
+            cat /tmp/missing_in_trace.txt
+            MISSING_COUNT=$(wc -l < /tmp/missing_in_trace.txt)
+            echo ""
+            echo "Total missing: $MISSING_COUNT"
+          else
+            echo "✅ All tests are documented in traceability matrix"
+          fi
+          
+          echo ""
+          echo "=== Tests in traceability matrix but NOT in code ==="
+          comm -13 /tmp/code_tests.txt /tmp/trace_tests.txt > /tmp/extra_in_trace.txt
+          
+          if [ -s /tmp/extra_in_trace.txt ]; then
+            echo "⚠️ The following tests are in traceability matrix but not in code:"
+            cat /tmp/extra_in_trace.txt
+            EXTRA_COUNT=$(wc -l < /tmp/extra_in_trace.txt)
+            echo ""
+            echo "Total extra: $EXTRA_COUNT"
+          else
+            echo "✅ No orphaned tests in traceability matrix"
+          fi
+          
+          echo ""
+          echo "=== Summary ==="
+          CODE_COUNT=$(wc -l < /tmp/code_tests.txt)
+          TRACE_COUNT=$(wc -l < /tmp/trace_tests.txt)
+          echo "Tests in code: $CODE_COUNT"
+          echo "Tests in traceability matrix: $TRACE_COUNT"
+          
+          # Fail if there are tests missing from traceability
+          if [ -s /tmp/missing_in_trace.txt ]; then
+            echo ""
+            echo "❌ FAILED: All tests must be documented in TEST_REQUIREMENT_TRACE.md"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ PASSED: Test traceability check complete"

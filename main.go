@@ -10,37 +10,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func main() {
-	// Get database path from environment or use default
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		dbPath = "leo_app.db"
-	}
-
-	// Initialize database
-	if err := db.InitDB(dbPath); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
-	}
-
-	// Create Gin router
+// SetupRouter creates and configures the Gin router with all routes
+func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
 	// CORS middleware
-	r.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-		c.Next()
-	})
+	r.Use(CORSMiddleware())
 
 	// Health check
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "healthy"})
-	})
+	r.GET("/health", HealthCheck)
 
 	// Public routes (no auth required)
 	r.POST("/api/register", handlers.Register)
@@ -62,12 +40,57 @@ func main() {
 		protected.DELETE("/todos/:id", handlers.DeleteTodo)
 	}
 
-	// Get port from environment or use default
+	return r
+}
+
+// CORSMiddleware returns a middleware that handles CORS
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	}
+}
+
+// HealthCheck handles the health check endpoint
+func HealthCheck(c *gin.Context) {
+	c.JSON(200, gin.H{"status": "healthy"})
+}
+
+// GetDBPath returns the database path from environment or default
+func GetDBPath() string {
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "leo_app.db"
+	}
+	return dbPath
+}
+
+// GetPort returns the port from environment or default
+func GetPort() string {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
+	return port
+}
 
+func main() {
+	dbPath := GetDBPath()
+
+	// Initialize database
+	if err := db.InitDB(dbPath); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+
+	r := SetupRouter()
+
+	port := GetPort()
 	log.Printf("Starting Leo App on port %s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
