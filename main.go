@@ -4,9 +4,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/containersolutions/leo-app/auth"
-	"github.com/containersolutions/leo-app/db"
-	"github.com/containersolutions/leo-app/handlers"
+	"github.com/ContainerSolutions/todo-app/auth"
+	"github.com/ContainerSolutions/todo-app/db"
+	"github.com/ContainerSolutions/todo-app/handlers"
 	"github.com/gin-gonic/gin"
 )
 

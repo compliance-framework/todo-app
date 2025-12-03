@@ -1,7 +1,7 @@
 package db
 
 import (
-	"github.com/containersolutions/leo-app/models"
+	"github.com/ContainerSolutions/todo-app/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

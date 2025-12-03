@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/containersolutions/leo-app/auth"
-	"github.com/containersolutions/leo-app/db"
-	"github.com/containersolutions/leo-app/models"
+	"github.com/ContainerSolutions/todo-app/auth"
+	"github.com/ContainerSolutions/todo-app/db"
+	"github.com/ContainerSolutions/todo-app/models"
 	"github.com/gin-gonic/gin"
 )
 
