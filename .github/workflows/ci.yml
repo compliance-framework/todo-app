@@ -76,7 +76,6 @@ jobs:
         with:
           # simple test for the sake of testing :)
           api_url: https://examinational-unmeasured-mathilda.ngrok-free.dev
-          verbosity: 2
           plugins: |
             # Upload SARIF report
             files_todo_app_golangcilint_sarif:
