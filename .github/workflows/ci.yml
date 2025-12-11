@@ -36,9 +36,9 @@ jobs:
               files_todo_app_ctrf:
                 config:
                   file_path: ctrf-report.json
-                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                source: ghcr.io/compliance-framework/plugin-file-attestation:v0.1.0
                 policies:
-                  - ghcr.io/compliance-framework/plugin-file-attestation-ctrf-policies@v0.1.0
+                  - ghcr.io/compliance-framework/plugin-file-attestation-ctrf-policies:v0.1.0
                 labels:
                   tier: vcs
                   team: containersolutions
@@ -64,7 +64,7 @@ jobs:
           go-version: '1.25'
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v7
         with:
           version: latest
           args: --timeout=5m --output.sarif.path out_sarif.json
@@ -79,9 +79,9 @@ jobs:
             files_todo_app_golangcilint_sarif:
               config:
                 file_path: "./out_sarif.json"
-                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                source: ghcr.io/compliance-framework/plugin-file-attestation:v0.1.0
                 policies:
-                  - ghcr.io/compliance-framework/plugin-file-attestation-sarif-policies@v0.1.0
+                  - ghcr.io/compliance-framework/plugin-file-attestation-sarif-policies:v0.1.0
                 labels:
                   tier: vcs
                   team: containersolutions
@@ -91,9 +91,9 @@ jobs:
                 file_path: "./.golangci.yml"
                 attestation_path: .sigstore/.golangci.yml.bundle
                 authorized_signers: "gustavo.carvalho@container-solutions.com"
-                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                source: ghcr.io/compliance-framework/plugin-file-attestation:v0.1.0
                 policies:
-                  - ghcr.io/compliance-framework/plugin-file-attestation-policies@v0.1.0
+                  - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
                   team: containersolutions
