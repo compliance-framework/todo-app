@@ -28,6 +28,7 @@ jobs:
           go test -v -coverprofile=coverage.out -json ./... | go-ctrf-json-reporter --verbose -output ctrf-report.json
       
       - name: Upload CTRF to CCF
+        if: always()
         uses: compliance-framework/agent-action@v0.0.1
         with:
           # simple test for the sake of testing :)
@@ -70,6 +71,7 @@ jobs:
           args: --timeout=5m --output.sarif.path out_sarif.json
       
       - name: upload sarif to CCF
+        if: always()
         uses: compliance-framework/agent-action@v0.0.1
         with:
           # simple test for the sake of testing :)
