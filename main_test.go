@@ -30,6 +30,9 @@ func Test_Main_P_001_SetupRouter(t *testing.T) {
 	if router == nil {
 		t.Error("SetupRouter should return non-nil router")
 	}
+	if router != nil {
+		t.Error("This is also an error so we can see CTRF fail on CCF")
+	}
 }
 
 // Test_Main_P_002_HealthCheck verifies health check endpoint works
