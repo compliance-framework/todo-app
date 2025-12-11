@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: upload file attestation evidences to CCF
-        uses: compliance-framework/agent-action@v0
+        uses: compliance-framework/agent-action@v0.0.1
         with:
           # simple test for the sake of testing :)
           api_url: https://examinational-unmeasured-mathilda.ngrok-free.dev 
