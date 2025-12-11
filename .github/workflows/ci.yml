@@ -36,7 +36,7 @@ jobs:
           plugins: |
               files_todo_app_ctrf:
                 config:
-                  file_path: ctrf-report.json
+                  file_path: /github/workspace/ctrf-report.json
                 source: ghcr.io/compliance-framework/plugin-file-attestation:v0.1.0
                 policies:
                   - ghcr.io/compliance-framework/plugin-file-attestation-ctrf-policies:v0.1.0
