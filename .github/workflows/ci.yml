@@ -16,18 +16,32 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-
+          go-version: '1.25'
+      - name: Setup go-ctrf-json-reporter
+        run: go install github.com/ctrf-io/go-ctrf-json-reporter/cmd/go-ctrf-json-reporter@latest
+      
       - name: Install dependencies
         run: go mod download
 
-      - name: Run tests
-        run: go test -v ./...
-
       - name: Run tests with coverage
         run: |
-          go test -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out
+          go test -v -coverprofile=coverage.out -json ./... | go-ctrf-json-reporter --verbose -output ctrf-report.json
+      
+      - name: Upload CTRF to CCF
+        uses: compliance-framework/agent-action@v0
+        with:
+          # simple test for the sake of testing :)
+          api_url: https://examinational-unmeasured-mathilda.ngrok-free.dev 
+          plugins: |
+              files_todo_app_ctrf:
+                config:
+                  file_path: ctrf-report.json
+                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                policies:
+                  - ghcr.io/compliance-framework/plugin-file-attestation-ctrf-policies@v0.1.0
+                labels:
+                  tier: vcs
+                  team: containersolutions
 
       - name: Check coverage threshold
         run: |
@@ -47,24 +61,54 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.25'
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
-          args: --timeout=5m
+          args: --timeout=5m --output.sarif.path out_sarif.json
+      
+      - name: upload sarif to CCF
+        uses: compliance-framework/agent-action@v0
+        with:
+          # simple test for the sake of testing :)
+          api_url: https://examinational-unmeasured-mathilda.ngrok-free.dev 
+          plugins: |
+            # Upload SARIF report
+            files_todo_app_golangcilint_sarif:
+              config:
+                file_path: "./out_sarif.json"
+                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                policies:
+                  - ghcr.io/compliance-framework/plugin-file-attestation-sarif-policies@v0.1.0
+                labels:
+                  tier: vcs
+                  team: containersolutions
+            # Attest golangci-lint configuration
+            files_todo_app_golangcilint_config:
+              config:
+                file_path: "./.golangci.yml"
+                attestation_path: .sigstore/.golangci.yml.bundle
+                authorized_signers: "gustavo.carvalho@container-solutions.com"
+                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                policies:
+                  - ghcr.io/compliance-framework/plugin-file-attestation-policies@v0.1.0
+                labels:
+                  tier: vcs
+                  team: containersolutions
+
 
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.25'
 
       - name: Build
-        run: go build -v -o leo-app .
+        run: go build -v -o todo-app .

@@ -1,0 +1,97 @@
+name: Gather File Evidences
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  gather-file-evidences:
+    name: Gather File Evidences
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: upload file attestation evidences to CCF
+        uses: compliance-framework/agent-action@v0
+        with:
+          # simple test for the sake of testing :)
+          api_url: https://examinational-unmeasured-mathilda.ngrok-free.dev 
+          plugins: |
+              files_todo_app_security:
+                config:
+                  file_path: SECURITY.md
+                  attestation_path: .sigstore/SECURITY.md.bundle
+                  authorized_signers: "gustavo.carvalho@container-solutions.com"
+                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                policies:
+                  - ghcr.io/compliance-framework/plugin-file-attestation-policies@v0.1.0
+                labels:
+                  tier: vcs
+                  team: containersolutions
+              files_todo_app_configuration:
+                config:
+                  file_path: CONFIGURATION.md
+                  attestation_path: .sigstore/CONFIGURATION.md.bundle
+                  authorized_signers: "gustavo.carvalho@container-solutions.com"
+                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                policies:
+                  - ghcr.io/compliance-framework/plugin-file-attestation-policies@v0.1.0
+                labels:
+                  tier: vcs
+                  team: containersolutions
+              files_todo_app_test_trace:
+                config:
+                  file_path: TEST_REQUIREMENT_TRACE.md
+                  attestation_path: .sigstore/TEST_REQUIREMENT_TRACE.md.bundle
+                  authorized_signers: "gustavo.carvalho@container-solutions.com"
+                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                policies:
+                  - ghcr.io/compliance-framework/plugin-file-attestation-policies@v0.1.0
+                labels:
+                  tier: vcs
+                  team: containersolutions
+              files_todo_app_plan:
+                config:
+                  file_path: PLAN.md
+                  attestation_path: .sigstore/PLAN.md.bundle
+                  authorized_signers: "gustavo.carvalho@container-solutions.com"
+                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                policies:
+                  - ghcr.io/compliance-framework/plugin-file-attestation-policies@v0.1.0
+                labels:
+                  tier: vcs
+                  team: containersolutions
+              files_todo_app_evidence_workflow:
+                config:
+                  file_path: .github/workflows/file_evidences.yml
+                  attestation_path: .sigstore/.github/workflows/file_evidences.yml.bundle
+                  authorized_signers: "gustavo.carvalho@container-solutions.com"
+                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                policies:
+                  - ghcr.io/compliance-framework/plugin-file-attestation-policies@v0.1.0
+                labels:
+                  tier: vcs
+                  team: containersolutions
+              files_todo_app_evidence_ci:
+                config:
+                  file_path: .github/workflows/ci.yml
+                  attestation_path: .sigstore/.github/workflows/ci.yml.bundle
+                  authorized_signers: "gustavo.carvalho@container-solutions.com"
+                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                policies:
+                  - ghcr.io/compliance-framework/plugin-file-attestation-policies@v0.1.0
+                labels:
+                  tier: vcs
+                  team: containersolutions
+              files_todo_app_evidence_test_traceability_workflow:
+                config:
+                  file_path: .github/workflows/test-traceability.yml
+                  attestation_path: .sigstore/.github/workflows/test-traceability.yml.bundle
+                  authorized_signers: "gustavo.carvalho@container-solutions.com"
+                source: ghcr.io/compliance-framework/plugin-file-attestation@v0.1.0
+                policies:
+                  - ghcr.io/compliance-framework/plugin-file-attestation-policies@v0.1.0
+                labels:
+                  tier: vcs
+                  team: containersolutions
