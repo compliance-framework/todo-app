@@ -90,8 +90,8 @@ jobs:
             # Attest golangci-lint configuration
             files_todo_app_golangcilint_config:
               config:
-                file_path: "./.golangci.yml"
-                attestation_path: .sigstore/.golangci.yml.bundle
+                file_path: "/github/workspace/.golangci.yml"
+                attestation_path: "/github/workspace/.sigstore/.golangci.yml.bundle"
                 authorized_signers: "gustavo.carvalho@container-solutions.com"
               source: ghcr.io/compliance-framework/plugin-file-attestation:v0.1.0
               policies:
