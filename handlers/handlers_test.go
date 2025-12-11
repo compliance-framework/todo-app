@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -42,6 +44,22 @@ func setupRouter() *gin.Engine {
 	}
 
 	return r
+}
+
+func mustNewRequest(t *testing.T, method, url string, body io.Reader) *http.Request {
+	t.Helper()
+	req, err := http.NewRequestWithContext(context.Background(), method, url, body)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	return req
+}
+
+func mustUnmarshalResponse[T any](t *testing.T, data []byte, target *T) {
+	t.Helper()
+	if err := json.Unmarshal(data, target); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 }
 
 func createTestUser(t *testing.T, username, password string) models.User {
@@ -83,7 +101,7 @@ func Test_REQ01_P_001_LoginSuccess(t *testing.T) {
 	}
 	body, _ := json.Marshal(loginReq)
 
-	req, _ := http.NewRequest("POST", "/api/login", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/login", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -93,7 +111,9 @@ func Test_REQ01_P_001_LoginSuccess(t *testing.T) {
 	}
 
 	var response LoginResponse
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal login response: %v", err)
+	}
 
 	if response.Token == "" {
 		t.Error("Expected token in response")
@@ -111,7 +131,7 @@ func Test_REQ01_P_002_RegisterSuccess(t *testing.T) {
 	}
 	body, _ := json.Marshal(registerReq)
 
-	req, _ := http.NewRequest("POST", "/api/register", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/register", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -134,7 +154,7 @@ func Test_REQ01_N_001_LoginInvalidPassword(t *testing.T) {
 	}
 	body, _ := json.Marshal(loginReq)
 
-	req, _ := http.NewRequest("POST", "/api/login", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/login", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -155,7 +175,7 @@ func Test_REQ01_N_002_LoginNonexistentUser(t *testing.T) {
 	}
 	body, _ := json.Marshal(loginReq)
 
-	req, _ := http.NewRequest("POST", "/api/login", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/login", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -178,7 +198,7 @@ func Test_REQ01_N_003_RegisterDuplicateUsername(t *testing.T) {
 	}
 	body, _ := json.Marshal(registerReq)
 
-	req, _ := http.NewRequest("POST", "/api/register", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/register", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -206,7 +226,7 @@ func Test_REQ02_P_001_CreateTodoSuccess(t *testing.T) {
 	}
 	body, _ := json.Marshal(todoReq)
 
-	req, _ := http.NewRequest("POST", "/api/todos", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/todos", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -217,7 +237,7 @@ func Test_REQ02_P_001_CreateTodoSuccess(t *testing.T) {
 	}
 
 	var todo models.Todo
-	json.Unmarshal(w.Body.Bytes(), &todo)
+	mustUnmarshalResponse(t, w.Body.Bytes(), &todo)
 
 	if todo.Title != "Test Todo" {
 		t.Errorf("Expected title 'Test Todo', got '%s'", todo.Title)
@@ -237,7 +257,7 @@ func Test_REQ02_N_001_CreateTodoUnauthenticated(t *testing.T) {
 	}
 	body, _ := json.Marshal(todoReq)
 
-	req, _ := http.NewRequest("POST", "/api/todos", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/todos", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -260,7 +280,7 @@ func Test_REQ02_N_002_CreateTodoEmptyTitle(t *testing.T) {
 	}
 	body, _ := json.Marshal(todoReq)
 
-	req, _ := http.NewRequest("POST", "/api/todos", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/todos", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -286,7 +306,7 @@ func Test_REQ03_P_001_ListAllTodos(t *testing.T) {
 	db.GetDB().Create(&models.Todo{Title: "Todo 1", UserID: user.ID})
 	db.GetDB().Create(&models.Todo{Title: "Todo 2", UserID: user.ID})
 
-	req, _ := http.NewRequest("GET", "/api/todos", nil)
+	req := mustNewRequest(t, "GET", "/api/todos", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -295,7 +315,7 @@ func Test_REQ03_P_001_ListAllTodos(t *testing.T) {
 	}
 
 	var todos []models.Todo
-	json.Unmarshal(w.Body.Bytes(), &todos)
+	mustUnmarshalResponse(t, w.Body.Bytes(), &todos)
 
 	if len(todos) != 2 {
 		t.Errorf("Expected 2 todos, got %d", len(todos))
@@ -311,7 +331,7 @@ func Test_REQ03_P_002_GetTodoById(t *testing.T) {
 	todo := models.Todo{Title: "Test Todo", UserID: user.ID}
 	db.GetDB().Create(&todo)
 
-	req, _ := http.NewRequest("GET", "/api/todos/1", nil)
+	req := mustNewRequest(t, "GET", "/api/todos/1", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -320,7 +340,7 @@ func Test_REQ03_P_002_GetTodoById(t *testing.T) {
 	}
 
 	var returnedTodo models.Todo
-	json.Unmarshal(w.Body.Bytes(), &returnedTodo)
+	mustUnmarshalResponse(t, w.Body.Bytes(), &returnedTodo)
 
 	if returnedTodo.Title != "Test Todo" {
 		t.Errorf("Expected title 'Test Todo', got '%s'", returnedTodo.Title)
@@ -335,7 +355,7 @@ func Test_REQ03_P_003_ListTodosUnauthenticated(t *testing.T) {
 	user := createTestUser(t, "testuser", "password123")
 	db.GetDB().Create(&models.Todo{Title: "Public Todo", UserID: user.ID})
 
-	req, _ := http.NewRequest("GET", "/api/todos", nil)
+	req := mustNewRequest(t, "GET", "/api/todos", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -349,7 +369,7 @@ func Test_REQ03_N_001_GetNonexistentTodo(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
-	req, _ := http.NewRequest("GET", "/api/todos/999", nil)
+	req := mustNewRequest(t, "GET", "/api/todos/999", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -363,7 +383,7 @@ func Test_REQ03_E_001_ListEmptyTodos(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
-	req, _ := http.NewRequest("GET", "/api/todos", nil)
+	req := mustNewRequest(t, "GET", "/api/todos", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -372,7 +392,7 @@ func Test_REQ03_E_001_ListEmptyTodos(t *testing.T) {
 	}
 
 	var todos []models.Todo
-	json.Unmarshal(w.Body.Bytes(), &todos)
+	mustUnmarshalResponse(t, w.Body.Bytes(), &todos)
 
 	if len(todos) != 0 {
 		t.Errorf("Expected 0 todos, got %d", len(todos))
@@ -399,7 +419,7 @@ func Test_REQ04_P_001_UpdateOwnTodo(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateReq)
 
-	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "PUT", "/api/todos/1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -410,7 +430,7 @@ func Test_REQ04_P_001_UpdateOwnTodo(t *testing.T) {
 	}
 
 	var updatedTodo models.Todo
-	json.Unmarshal(w.Body.Bytes(), &updatedTodo)
+	mustUnmarshalResponse(t, w.Body.Bytes(), &updatedTodo)
 
 	if updatedTodo.Title != "Updated Title" {
 		t.Errorf("Expected title 'Updated Title', got '%s'", updatedTodo.Title)
@@ -428,7 +448,7 @@ func Test_REQ04_P_002_DeleteOwnTodo(t *testing.T) {
 	todo := models.Todo{Title: "To Delete", UserID: user.ID}
 	db.GetDB().Create(&todo)
 
-	req, _ := http.NewRequest("DELETE", "/api/todos/1", nil)
+	req := mustNewRequest(t, "DELETE", "/api/todos/1", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -458,7 +478,7 @@ func Test_REQ04_N_001_UpdateOtherUserTodo(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateReq)
 
-	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "PUT", "/api/todos/1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token2)
 	w := httptest.NewRecorder()
@@ -484,7 +504,7 @@ func Test_REQ04_N_002_DeleteOtherUserTodo(t *testing.T) {
 	db.GetDB().Create(&todo)
 
 	// User2 tries to delete user1's todo
-	req, _ := http.NewRequest("DELETE", "/api/todos/1", nil)
+	req := mustNewRequest(t, "DELETE", "/api/todos/1", nil)
 	req.Header.Set("Authorization", "Bearer "+token2)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -508,7 +528,7 @@ func Test_REQ04_N_003_UpdateTodoUnauthenticated(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateReq)
 
-	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "PUT", "/api/todos/1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -527,7 +547,7 @@ func Test_REQ04_N_004_DeleteTodoUnauthenticated(t *testing.T) {
 	todo := models.Todo{Title: "Test Todo", UserID: user.ID}
 	db.GetDB().Create(&todo)
 
-	req, _ := http.NewRequest("DELETE", "/api/todos/1", nil)
+	req := mustNewRequest(t, "DELETE", "/api/todos/1", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -545,7 +565,7 @@ func Test_REQ03_N_002_GetTodoInvalidID(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
-	req, _ := http.NewRequest("GET", "/api/todos/invalid", nil)
+	req := mustNewRequest(t, "GET", "/api/todos/invalid", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -567,7 +587,7 @@ func Test_REQ04_N_005_UpdateTodoInvalidID(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateReq)
 
-	req, _ := http.NewRequest("PUT", "/api/todos/invalid", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "PUT", "/api/todos/invalid", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -591,7 +611,7 @@ func Test_REQ04_N_006_UpdateNonexistentTodo(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateReq)
 
-	req, _ := http.NewRequest("PUT", "/api/todos/999", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "PUT", "/api/todos/999", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -610,7 +630,7 @@ func Test_REQ04_N_007_DeleteTodoInvalidID(t *testing.T) {
 	user := createTestUser(t, "testuser", "password123")
 	token := getAuthToken(t, user.ID, user.Username)
 
-	req, _ := http.NewRequest("DELETE", "/api/todos/invalid", nil)
+	req := mustNewRequest(t, "DELETE", "/api/todos/invalid", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -628,7 +648,7 @@ func Test_REQ04_N_008_DeleteNonexistentTodo(t *testing.T) {
 	user := createTestUser(t, "testuser", "password123")
 	token := getAuthToken(t, user.ID, user.Username)
 
-	req, _ := http.NewRequest("DELETE", "/api/todos/999", nil)
+	req := mustNewRequest(t, "DELETE", "/api/todos/999", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -643,7 +663,7 @@ func Test_REQ01_N_004_LoginInvalidJSON(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
-	req, _ := http.NewRequest("POST", "/api/login", bytes.NewBuffer([]byte("invalid json")))
+	req := mustNewRequest(t, "POST", "/api/login", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -658,7 +678,7 @@ func Test_REQ01_N_005_RegisterInvalidJSON(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
-	req, _ := http.NewRequest("POST", "/api/register", bytes.NewBuffer([]byte("invalid json")))
+	req := mustNewRequest(t, "POST", "/api/register", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -676,7 +696,7 @@ func Test_REQ02_N_003_CreateTodoInvalidJSON(t *testing.T) {
 	user := createTestUser(t, "testuser", "password123")
 	token := getAuthToken(t, user.ID, user.Username)
 
-	req, _ := http.NewRequest("POST", "/api/todos", bytes.NewBuffer([]byte("invalid json")))
+	req := mustNewRequest(t, "POST", "/api/todos", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -704,7 +724,7 @@ func Test_REQ04_P_003_UpdateTodoCompleted(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateReq)
 
-	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "PUT", "/api/todos/1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -715,7 +735,7 @@ func Test_REQ04_P_003_UpdateTodoCompleted(t *testing.T) {
 	}
 
 	var updatedTodo models.Todo
-	json.Unmarshal(w.Body.Bytes(), &updatedTodo)
+	mustUnmarshalResponse(t, w.Body.Bytes(), &updatedTodo)
 
 	if !updatedTodo.Completed {
 		t.Error("Expected todo to be completed")
@@ -738,7 +758,7 @@ func Test_REQ04_P_004_UpdateTodoDescription(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateReq)
 
-	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "PUT", "/api/todos/1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -749,8 +769,10 @@ func Test_REQ04_P_004_UpdateTodoDescription(t *testing.T) {
 	}
 
 	var updatedTodo models.Todo
-	json.Unmarshal(w.Body.Bytes(), &updatedTodo)
-
+	err := json.Unmarshal(w.Body.Bytes(), &updatedTodo)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if updatedTodo.Description != "Updated Description" {
 		t.Errorf("Expected description 'Updated Description', got '%s'", updatedTodo.Description)
 	}
@@ -767,7 +789,7 @@ func Test_REQ04_N_009_UpdateTodoInvalidJSON(t *testing.T) {
 	todo := models.Todo{Title: "Test Todo", UserID: user.ID}
 	db.GetDB().Create(&todo)
 
-	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer([]byte("invalid json")))
+	req := mustNewRequest(t, "PUT", "/api/todos/1", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -791,7 +813,7 @@ func Test_REQ03_E_002_ListTodosDBError(t *testing.T) {
 	sqlDB, _ := db.GetDB().DB()
 	sqlDB.Close()
 
-	req, _ := http.NewRequest("GET", "/api/todos", nil)
+	req := mustNewRequest(t, "GET", "/api/todos", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -820,7 +842,7 @@ func Test_REQ02_E_001_CreateTodoDBError(t *testing.T) {
 	}
 	body, _ := json.Marshal(todoReq)
 
-	req, _ := http.NewRequest("POST", "/api/todos", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/todos", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -854,7 +876,7 @@ func Test_REQ04_E_001_UpdateTodoDBErrorOnSave(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateReq)
 
-	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "PUT", "/api/todos/1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -884,7 +906,7 @@ func Test_REQ04_E_002_DeleteTodoDBErrorOnDelete(t *testing.T) {
 	db.GetDB().Exec("ALTER TABLE todos RENAME TO todos_backup")
 	db.GetDB().Exec("CREATE VIEW todos AS SELECT * FROM todos_backup")
 
-	req, _ := http.NewRequest("DELETE", "/api/todos/1", nil)
+	req := mustNewRequest(t, "DELETE", "/api/todos/1", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -913,7 +935,7 @@ func Test_REQ01_E_001_RegisterDBError(t *testing.T) {
 	}
 	body, _ := json.Marshal(registerReq)
 
-	req, _ := http.NewRequest("POST", "/api/register", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/register", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -941,7 +963,7 @@ func Test_REQ01_E_002_LoginDBError(t *testing.T) {
 	}
 	body, _ := json.Marshal(loginReq)
 
-	req, _ := http.NewRequest("POST", "/api/login", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/login", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -977,7 +999,7 @@ func Test_REQ01_E_003_RegisterHashPasswordError(t *testing.T) {
 	}
 	body, _ := json.Marshal(registerReq)
 
-	req, _ := http.NewRequest("POST", "/api/register", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/register", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1008,7 +1030,7 @@ func Test_REQ01_E_004_LoginGenerateTokenError(t *testing.T) {
 	}
 	body, _ := json.Marshal(loginReq)
 
-	req, _ := http.NewRequest("POST", "/api/login", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/login", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1032,7 +1054,7 @@ func Test_REQ02_E_002_CreateTodoNoUserInContext(t *testing.T) {
 	}
 	body, _ := json.Marshal(todoReq)
 
-	req, _ := http.NewRequest("POST", "/api/todos", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "POST", "/api/todos", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1056,7 +1078,7 @@ func Test_REQ04_E_003_UpdateTodoNoUserInContext(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateReq)
 
-	req, _ := http.NewRequest("PUT", "/api/todos/1", bytes.NewBuffer(body))
+	req := mustNewRequest(t, "PUT", "/api/todos/1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1075,7 +1097,7 @@ func Test_REQ04_E_004_DeleteTodoNoUserInContext(t *testing.T) {
 	router := gin.New()
 	router.DELETE("/api/todos/:id", DeleteTodo)
 
-	req, _ := http.NewRequest("DELETE", "/api/todos/1", nil)
+	req := mustNewRequest(t, "DELETE", "/api/todos/1", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
