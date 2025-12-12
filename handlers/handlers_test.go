@@ -86,8 +86,8 @@ func getAuthToken(t *testing.T, userID uint, username string) string {
 // REQ01: Users should be able to LOGIN
 // =============================================================================
 
-// Test_REQ01_P_001_LoginSuccess verifies user can login with valid credentials
-func Test_REQ01_P_001_LoginSuccess(t *testing.T) {
+// Test_REQ01_P_005_LoginSuccess verifies user can login with valid credentials
+func Test_REQ01_P_005_LoginSuccess(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
@@ -120,8 +120,8 @@ func Test_REQ01_P_001_LoginSuccess(t *testing.T) {
 	}
 }
 
-// Test_REQ01_P_002_RegisterSuccess verifies user can register a new account
-func Test_REQ01_P_002_RegisterSuccess(t *testing.T) {
+// Test_REQ01_P_006_RegisterSuccess verifies user can register a new account
+func Test_REQ01_P_006_RegisterSuccess(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
@@ -141,8 +141,8 @@ func Test_REQ01_P_002_RegisterSuccess(t *testing.T) {
 	}
 }
 
-// Test_REQ01_N_001_LoginInvalidPassword verifies login fails with wrong password
-func Test_REQ01_N_001_LoginInvalidPassword(t *testing.T) {
+// Test_REQ01_N_009_LoginInvalidPassword verifies login fails with wrong password
+func Test_REQ01_N_009_LoginInvalidPassword(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
@@ -164,8 +164,8 @@ func Test_REQ01_N_001_LoginInvalidPassword(t *testing.T) {
 	}
 }
 
-// Test_REQ01_N_002_LoginNonexistentUser verifies login fails for non-existent user
-func Test_REQ01_N_002_LoginNonexistentUser(t *testing.T) {
+// Test_REQ01_N_010_LoginNonexistentUser verifies login fails for non-existent user
+func Test_REQ01_N_010_LoginNonexistentUser(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
@@ -185,8 +185,8 @@ func Test_REQ01_N_002_LoginNonexistentUser(t *testing.T) {
 	}
 }
 
-// Test_REQ01_N_003_RegisterDuplicateUsername verifies registration fails for duplicate username
-func Test_REQ01_N_003_RegisterDuplicateUsername(t *testing.T) {
+// Test_REQ01_N_011_RegisterDuplicateUsername verifies registration fails for duplicate username
+func Test_REQ01_N_011_RegisterDuplicateUsername(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
@@ -658,8 +658,8 @@ func Test_REQ04_N_008_DeleteNonexistentTodo(t *testing.T) {
 	}
 }
 
-// Test_REQ01_N_004_LoginInvalidJSON verifies login fails with invalid JSON
-func Test_REQ01_N_004_LoginInvalidJSON(t *testing.T) {
+// Test_REQ01_N_012_LoginInvalidJSON verifies login fails with invalid JSON
+func Test_REQ01_N_012_LoginInvalidJSON(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
@@ -673,8 +673,8 @@ func Test_REQ01_N_004_LoginInvalidJSON(t *testing.T) {
 	}
 }
 
-// Test_REQ01_N_005_RegisterInvalidJSON verifies registration fails with invalid JSON
-func Test_REQ01_N_005_RegisterInvalidJSON(t *testing.T) {
+// Test_REQ01_N_013_RegisterInvalidJSON verifies registration fails with invalid JSON
+func Test_REQ01_N_013_RegisterInvalidJSON(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
@@ -920,8 +920,8 @@ func Test_REQ04_E_002_DeleteTodoDBErrorOnDelete(t *testing.T) {
 	setupTestDB(t)
 }
 
-// Test_REQ01_E_001_RegisterDBError verifies Register handles DB error on create
-func Test_REQ01_E_001_RegisterDBError(t *testing.T) {
+// Test_REQ01_E_002_RegisterDBError verifies Register handles DB error on create
+func Test_REQ01_E_002_RegisterDBError(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
@@ -948,8 +948,8 @@ func Test_REQ01_E_001_RegisterDBError(t *testing.T) {
 	setupTestDB(t)
 }
 
-// Test_REQ01_E_002_LoginDBError verifies Login handles DB error
-func Test_REQ01_E_002_LoginDBError(t *testing.T) {
+// Test_REQ01_E_003_LoginDBError verifies Login handles DB error
+func Test_REQ01_E_003_LoginDBError(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
@@ -981,8 +981,8 @@ func Test_REQ01_E_002_LoginDBError(t *testing.T) {
 // Mock-based Error Tests
 // =============================================================================
 
-// Test_REQ01_E_003_RegisterHashPasswordError verifies Register handles hash password error
-func Test_REQ01_E_003_RegisterHashPasswordError(t *testing.T) {
+// Test_REQ01_E_004_RegisterHashPasswordError verifies Register handles hash password error
+func Test_REQ01_E_004_RegisterHashPasswordError(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
@@ -1009,8 +1009,8 @@ func Test_REQ01_E_003_RegisterHashPasswordError(t *testing.T) {
 	}
 }
 
-// Test_REQ01_E_004_LoginGenerateTokenError verifies Login handles token generation error
-func Test_REQ01_E_004_LoginGenerateTokenError(t *testing.T) {
+// Test_REQ01_E_005_LoginGenerateTokenError verifies Login handles token generation error
+func Test_REQ01_E_005_LoginGenerateTokenError(t *testing.T) {
 	setupTestDB(t)
 	router := setupRouter()
 
