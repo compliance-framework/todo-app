@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/compliance-framework/todo-app/compare/v0.1.0...v0.1.1) (2025-12-15)
+
+
+### Bug Fixes
+
+* evidence workflow syntax ([#9](https://github.com/compliance-framework/todo-app/issues/9)) ([2d5c377](https://github.com/compliance-framework/todo-app/commit/2d5c37795f29b89370a7481c032355b10406eefd))
+
 ## [0.1.0](https://github.com/compliance-framework/todo-app/compare/v0.0.1...v0.1.0) (2025-12-15)
 
 
