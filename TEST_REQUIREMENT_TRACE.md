@@ -23,8 +23,8 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_P_002 | Test_REQ01_P_002_GenerateAndValidateToken | Positive | auth/auth_test.go | Verify token generation and validation |
 | REQ01_P_003 | Test_REQ01_P_003_AuthMiddlewareValidToken | Positive | auth/auth_test.go | Verify middleware passes valid token |
 | REQ01_P_004 | Test_REQ01_P_004_GetUserIDFromContextSuccess | Positive | auth/auth_test.go | Verify user ID extraction from context |
-| REQ01_P_005 | Test_REQ01_P_001_LoginSuccess | Positive | handlers/handlers_test.go | Verify user can login with valid credentials |
-| REQ01_P_006 | Test_REQ01_P_002_RegisterSuccess | Positive | handlers/handlers_test.go | Verify user can register a new account |
+| REQ01_P_005 | Test_REQ01_P_005_LoginSuccess | Positive | handlers/handlers_test.go | Verify user can login with valid credentials |
+| REQ01_P_006 | Test_REQ01_P_006_RegisterSuccess | Positive | handlers/handlers_test.go | Verify user can register a new account |
 | REQ01_N_001 | Test_REQ01_N_001_CheckWrongPassword | Negative | auth/auth_test.go | Verify wrong password fails check |
 | REQ01_N_002 | Test_REQ01_N_002_ValidateInvalidToken | Negative | auth/auth_test.go | Verify invalid token is rejected |
 | REQ01_N_003 | Test_REQ01_N_003_AuthMiddlewareNoHeader | Negative | auth/auth_test.go | Verify middleware rejects missing header |
@@ -32,16 +32,17 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_005 | Test_REQ01_N_005_AuthMiddlewareInvalidToken | Negative | auth/auth_test.go | Verify middleware rejects invalid token |
 | REQ01_N_006 | Test_REQ01_N_006_AuthMiddlewareMalformedHeader | Negative | auth/auth_test.go | Verify middleware rejects malformed header |
 | REQ01_N_007 | Test_REQ01_N_007_GetUserIDFromContextMissing | Negative | auth/auth_test.go | Verify missing user ID returns false |
-| REQ01_N_008 | Test_REQ01_N_001_LoginInvalidPassword | Negative | handlers/handlers_test.go | Verify login fails with wrong password |
-| REQ01_N_009 | Test_REQ01_N_002_LoginNonexistentUser | Negative | handlers/handlers_test.go | Verify login fails for non-existent user |
-| REQ01_N_010 | Test_REQ01_N_003_RegisterDuplicateUsername | Negative | handlers/handlers_test.go | Verify registration fails for duplicate username |
-| REQ01_N_011 | Test_REQ01_N_004_LoginInvalidJSON | Negative | handlers/handlers_test.go | Verify login fails with invalid JSON |
-| REQ01_N_012 | Test_REQ01_N_005_RegisterInvalidJSON | Negative | handlers/handlers_test.go | Verify registration fails with invalid JSON |
+| REQ01_N_008 | Test_REQ01_N_008_GetUserIDFromContextInvalidType | Negative | auth/auth_test.go | Verify invalid user ID type returns false |
+| REQ01_N_009 | Test_REQ01_N_009_LoginInvalidPassword | Negative | handlers/handlers_test.go | Verify login fails with wrong password |
+| REQ01_N_010 | Test_REQ01_N_010_LoginNonexistentUser | Negative | handlers/handlers_test.go | Verify login fails for non-existent user |
+| REQ01_N_011 | Test_REQ01_N_011_RegisterDuplicateUsername | Negative | handlers/handlers_test.go | Verify registration fails for duplicate username |
+| REQ01_N_012 | Test_REQ01_N_012_LoginInvalidJSON | Negative | handlers/handlers_test.go | Verify login fails with invalid JSON |
+| REQ01_N_013 | Test_REQ01_N_013_RegisterInvalidJSON | Negative | handlers/handlers_test.go | Verify registration fails with invalid JSON |
 | REQ01_E_001 | Test_REQ01_E_001_TokenExpiry | Edge | auth/auth_test.go | Verify expired tokens are rejected |
-| REQ01_E_002 | Test_REQ01_E_001_RegisterDBError | Edge | handlers/handlers_test.go | Verify Register handles DB error on create |
-| REQ01_E_003 | Test_REQ01_E_002_LoginDBError | Edge | handlers/handlers_test.go | Verify Login handles DB error |
-| REQ01_E_004 | Test_REQ01_E_003_RegisterHashPasswordError | Edge | handlers/handlers_test.go | Verify Register handles hash password error |
-| REQ01_E_005 | Test_REQ01_E_004_LoginGenerateTokenError | Edge | handlers/handlers_test.go | Verify Login handles token generation error |
+| REQ01_E_002 | Test_REQ01_E_002_RegisterDBError | Edge | handlers/handlers_test.go | Verify Register handles DB error on create |
+| REQ01_E_003 | Test_REQ01_E_003_LoginDBError | Edge | handlers/handlers_test.go | Verify Login handles DB error |
+| REQ01_E_004 | Test_REQ01_E_004_RegisterHashPasswordError | Edge | handlers/handlers_test.go | Verify Register handles hash password error |
+| REQ01_E_005 | Test_REQ01_E_005_LoginGenerateTokenError | Edge | handlers/handlers_test.go | Verify Login handles token generation error |
 
 ### REQ02: Create TODOs
 

@@ -1,8 +1,8 @@
-# Leo App - Software Development Plan
+# TODO App - Software Development Plan
 
 ## 1. Overview
 
-This document defines the software development plan for the Leo App Todo List application, following DO-178C guidelines for software planning.
+This document defines the software development plan for the App Todo List application, following DO-178C guidelines for software planning.
 
 ## 2. Development Objectives
 

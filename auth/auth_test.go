@@ -118,7 +118,7 @@ func Test_REQ01_P_003_AuthMiddlewareValidToken(t *testing.T) {
 
 	token, _ := GenerateToken(1, "testuser")
 
-	req, _ := http.NewRequest("GET", "/protected", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -136,7 +136,7 @@ func Test_REQ01_N_003_AuthMiddlewareNoHeader(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"message": "success"})
 	})
 
-	req, _ := http.NewRequest("GET", "/protected", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/protected", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -153,7 +153,7 @@ func Test_REQ01_N_004_AuthMiddlewareInvalidFormat(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"message": "success"})
 	})
 
-	req, _ := http.NewRequest("GET", "/protected", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/protected", nil)
 	req.Header.Set("Authorization", "InvalidFormat token123")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -171,7 +171,7 @@ func Test_REQ01_N_005_AuthMiddlewareInvalidToken(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"message": "success"})
 	})
 
-	req, _ := http.NewRequest("GET", "/protected", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/protected", nil)
 	req.Header.Set("Authorization", "Bearer invalid.token.here")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -189,7 +189,7 @@ func Test_REQ01_N_006_AuthMiddlewareMalformedHeader(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"message": "success"})
 	})
 
-	req, _ := http.NewRequest("GET", "/protected", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/protected", nil)
 	req.Header.Set("Authorization", "BearerNoSpace")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -222,6 +222,18 @@ func Test_REQ01_P_004_GetUserIDFromContextSuccess(t *testing.T) {
 func Test_REQ01_N_007_GetUserIDFromContextMissing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	_, ok := GetUserIDFromContext(c)
+	if ok {
+		t.Error("Expected ok to be false when user_id not set")
+	}
+}
+
+// Test_REQ01_N_008_GetUserIDFromContextInvalidType verifies invalid user ID type returns false
+func Test_REQ01_N_008_GetUserIDFromContextInvalidType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("user_id", "abc")
 
 	_, ok := GetUserIDFromContext(c)
 	if ok {

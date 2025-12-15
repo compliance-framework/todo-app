@@ -114,5 +114,9 @@ func GetUserIDFromContext(c *gin.Context) (uint, bool) {
 	if !exists {
 		return 0, false
 	}
-	return userID.(uint), true
+	uintUser, ok := userID.(uint)
+	if !ok {
+		return 0, false
+	}
+	return uintUser, true
 }

@@ -37,7 +37,7 @@ func Test_Main_P_002_HealthCheck(t *testing.T) {
 	setupTestDB(t)
 	router := SetupRouter()
 
-	req, _ := http.NewRequest("GET", "/health", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/health", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -51,7 +51,7 @@ func Test_Main_P_003_CORSMiddleware(t *testing.T) {
 	setupTestDB(t)
 	router := SetupRouter()
 
-	req, _ := http.NewRequest("GET", "/health", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/health", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -64,8 +64,7 @@ func Test_Main_P_003_CORSMiddleware(t *testing.T) {
 func Test_Main_P_004_CORSMiddlewareOptions(t *testing.T) {
 	setupTestDB(t)
 	router := SetupRouter()
-
-	req, _ := http.NewRequest("OPTIONS", "/api/todos", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), "OPTIONS", "/api/todos", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
