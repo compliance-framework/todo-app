@@ -7,7 +7,7 @@ on:
     tags:
       - '*'
 env:
-  CCF_API_URL: ${{ variables.CCF_API_URL }}
+  CCF_API_URL: ${{ vars.CCF_API_URL }}
 jobs:
   ci-test-evidences:
     name: Test
