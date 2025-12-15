@@ -1,5 +1,5 @@
 # Binaries
-leo-app
+todo-app
 *.exe
 *.exe~
 *.dll

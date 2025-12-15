@@ -77,8 +77,8 @@ func Test_Main_P_004_CORSMiddlewareOptions(t *testing.T) {
 func Test_Main_P_005_GetDBPathDefault(t *testing.T) {
 	os.Unsetenv("DB_PATH")
 	path := GetDBPath()
-	if path != "leo_app.db" {
-		t.Errorf("Expected default path 'leo_app.db', got '%s'", path)
+	if path != "todo_app.db" {
+		t.Errorf("Expected default path 'todo_app.db', got '%s'", path)
 	}
 }
 

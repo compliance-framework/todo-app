@@ -66,7 +66,7 @@ func HealthCheck(c *gin.Context) {
 func GetDBPath() string {
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
-		dbPath = "leo_app.db"
+		dbPath = "todo_app.db"
 	}
 	return dbPath
 }
@@ -91,7 +91,7 @@ func main() {
 	r := SetupRouter()
 
 	port := GetPort()
-	log.Printf("Starting Leo App on port %s", port)
+	log.Printf("Starting todo App on port %s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

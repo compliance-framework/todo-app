@@ -10,7 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("leo-app-secret-key-change-in-production")
+var jwtSecret = []byte("todo-app-secret-key-change-in-production")
 
 // Function variables for testing (allows mocking)
 var (

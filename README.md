@@ -1,4 +1,4 @@
-# Leo App - Todo List Application
+# todo App - Todo List Application
 
 A simple Todo List web application built with Go, demonstrating DO-178C compliance practices.
 
@@ -22,7 +22,7 @@ A simple Todo List web application built with Go, demonstrating DO-178C complian
 ## Project Structure
 
 ```
-leo_app/
+todo_app/
 ├── main.go              # Application entry point
 ├── go.mod               # Go module definition
 ├── models/
@@ -62,14 +62,14 @@ go mod tidy
 go run main.go
 
 # Or build and run
-go build -o leo-app
-./leo-app
+go build -o todo-app
+./todo-app
 ```
 
 ## Environment Variables
 
 - `PORT` - Server port (default: 8080)
-- `DB_PATH` - SQLite database path (default: leo_app.db)
+- `DB_PATH` - SQLite database path (default: todo_app.db)
 
 ## Testing
 
