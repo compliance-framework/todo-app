@@ -53,9 +53,9 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-ctrf-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
-                  repository: todo_app
-                  organization: containersolutions
+                  team: ccf
+                  repository: todo-app
+                  organization: compliance-framework
 
   ci-lint-evidences:
     name: Lint
@@ -90,9 +90,9 @@ jobs:
                 - ghcr.io/compliance-framework/plugin-file-attestation-sarif-policies:v0.1.0
               labels:
                 tier: vcs
-                team: containersolutions
-                repository: todo_app
-                organization: containersolutions
+                team: ccf
+                repository: todo-app
+                organization: compliance-framework
             # Attest golangci-lint configuration
             files_todo_app_golangcilint_config:
               config:
@@ -104,9 +104,9 @@ jobs:
                 - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
               labels:
                 tier: vcs
-                team: containersolutions
-                repository: todo_app
-                organization: containersolutions
+                team: ccf
+                repository: todo-app
+                organization: compliance-framework
 
   gather-file-evidences:
     name: Gather File Evidences
@@ -130,9 +130,9 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
-                  repository: todo_app
-                  organization: containersolutions
+                  team: ccf
+                  repository: todo-app
+                  organization: compliance-framework
               files_todo_app_configuration:
                 config:
                   file_path: /github/workspace/CONFIGURATION.md
@@ -143,9 +143,9 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
-                  repository: todo_app
-                  organization: containersolutions
+                  team: ccf
+                  repository: todo-app
+                  organization: compliance-framework
               files_todo_app_test_trace:
                 config:
                   file_path: /github/workspace/TEST_REQUIREMENT_TRACE.md
@@ -156,7 +156,9 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
+                  team: ccf
+                  repository: todo-app
+                  organization: compliance-framework
               files_todo_app_plan:
                 config:
                   file_path: /github/workspace/PLAN.md
@@ -167,9 +169,9 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
-                  repository: todo_app
-                  organization: containersolutions
+                  team: ccf
+                  repository: todo-app
+                  organization: compliance-framework
               files_todo_app_evidence_workflow:
                 config:
                   file_path: /github/workspace/.github/workflows/evidences.yml
@@ -180,9 +182,9 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
-                  repository: todo_app
-                  organization: containersolutions
+                  team: ccf
+                  repository: todo-app
+                  organization: compliance-framework
               files_todo_app_evidence_ci:
                 config:
                   file_path: /github/workspace/.github/workflows/ci.yml
@@ -193,9 +195,9 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
-                  repository: todo_app
-                  organization: containersolutions
+                  team: ccf
+                  repository: todo-app
+                  organization: compliance-framework
               files_todo_app_evidence_test_traceability_workflow:
                 config:
                   file_path: /github/workspace/.github/workflows/test-traceability.yml
@@ -206,6 +208,6 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
-                  repository: todo_app
-                  organization: containersolutions
+                  team: ccf
+                  repository: todo-app
+                  organization: compliance-framework

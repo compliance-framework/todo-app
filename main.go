@@ -96,7 +96,3 @@ func main() {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
-
-func unusedFunction() error {
-	return nil
-}
