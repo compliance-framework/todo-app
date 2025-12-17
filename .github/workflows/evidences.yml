@@ -53,7 +53,7 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-ctrf-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
+                  team: ccf
                   repository: todo-app
                   organization: compliance-framework
 
@@ -84,25 +84,27 @@ jobs:
             # Upload SARIF report
             files_todo_app_golangcilint_sarif:
               config:
-                file_path: /github/workspace/"/github/workspace/out_sarif.json"
+                file_path: /github/workspace/out_sarif.json
               source: ghcr.io/compliance-framework/plugin-file-attestation:v0.1.0
               policies:
                 - ghcr.io/compliance-framework/plugin-file-attestation-sarif-policies:v0.1.0
               labels:
                 tier: vcs
-                team: containersolutions
+                team: ccf
+                repository: todo-app
+                organization: compliance-framework
             # Attest golangci-lint configuration
             files_todo_app_golangcilint_config:
               config:
-                file_path: /github/workspace/"/github/workspace/.golangci.yml"
-                attestation_path: /github/workspace/"/github/workspace/.sigstore/.golangci.yml.bundle"
+                file_path: /github/workspace/.golangci.yml
+                attestation_path: /github/workspace/.sigstore/.golangci.yml.bundle
                 authorized_signers: "gustavo.carvalho@container-solutions.com"
               source: ghcr.io/compliance-framework/plugin-file-attestation:v0.1.0
               policies:
                 - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
               labels:
                 tier: vcs
-                team: containersolutions
+                team: ccf
                 repository: todo-app
                 organization: compliance-framework
 
@@ -128,7 +130,7 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
+                  team: ccf
                   repository: todo-app
                   organization: compliance-framework
               files_todo_app_configuration:
@@ -141,7 +143,9 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
+                  team: ccf
+                  repository: todo-app
+                  organization: compliance-framework
               files_todo_app_test_trace:
                 config:
                   file_path: /github/workspace/TEST_REQUIREMENT_TRACE.md
@@ -152,7 +156,9 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
+                  team: ccf
+                  repository: todo-app
+                  organization: compliance-framework
               files_todo_app_plan:
                 config:
                   file_path: /github/workspace/PLAN.md
@@ -163,7 +169,7 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
+                  team: ccf
                   repository: todo-app
                   organization: compliance-framework
               files_todo_app_evidence_workflow:
@@ -176,7 +182,7 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
+                  team: ccf
                   repository: todo-app
                   organization: compliance-framework
               files_todo_app_evidence_ci:
@@ -189,7 +195,7 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
+                  team: ccf
                   repository: todo-app
                   organization: compliance-framework
               files_todo_app_evidence_test_traceability_workflow:
@@ -202,6 +208,6 @@ jobs:
                   - ghcr.io/compliance-framework/plugin-file-attestation-policies:v0.1.0
                 labels:
                   tier: vcs
-                  team: containersolutions
+                  team: ccf
                   repository: todo-app
                   organization: compliance-framework
