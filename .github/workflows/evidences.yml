@@ -6,7 +6,7 @@ on:
       - main
     tags:
       - '*'
-    workflow_dispatch:
+  workflow_dispatch:
 env:
   CCF_API_URL: ${{ vars.CCF_API_URL }}
 jobs:
