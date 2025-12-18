@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.2](https://github.com/compliance-framework/todo-app/compare/v0.1.1...v0.1.2) (2025-12-17)
+
+
+### Bug Fixes
+
+* evidences should be also triggered manually ([#11](https://github.com/compliance-framework/todo-app/issues/11)) ([4b35507](https://github.com/compliance-framework/todo-app/commit/4b35507188976a16c60d2ad409d09ca1b411197e))
+* file version ([#15](https://github.com/compliance-framework/todo-app/issues/15)) ([9062c69](https://github.com/compliance-framework/todo-app/commit/9062c69ad539c3228fefcf97d8811e7a8bec713e))
+* identation ([#13](https://github.com/compliance-framework/todo-app/issues/13)) ([cea921f](https://github.com/compliance-framework/todo-app/commit/cea921fb4959df344c51ee0aaa53b147f837cff9))
+* lint ([#14](https://github.com/compliance-framework/todo-app/issues/14)) ([b76f3fc](https://github.com/compliance-framework/todo-app/commit/b76f3fc414091d64b1a5fd56ec662db28e97b998))
+
 ## [0.1.1](https://github.com/compliance-framework/todo-app/compare/v0.1.0...v0.1.1) (2025-12-15)
 
 
