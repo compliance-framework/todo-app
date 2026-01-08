@@ -1,0 +1,11 @@
+name: deploy-env
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: echo "This is a deployment I swear!"
