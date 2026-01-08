@@ -14,43 +14,23 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
     environment: production
+    outputs:
+      deployment_id: ${{ steps.create_deployment.outputs.deployment_id }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 1) Create a GitHub Deployment (this is what Atlassian ultimately tracks via deployment_status)
       - name: Create deployment
         id: create_deployment
         uses: chrnorm/deployment-action@releases/v1
         with:
           token: ${{ github.token }}
           environment: production
-          # Optional: set this if you have a URL to show in Jira/GitHub deployments UI
-          # environment_url: https://your-app.example.com
-
-      # 2) Your real deploy step(s) go here
-      - name: Deploy
+      - name: Add summary content
         run: |
-          echo "Do your real deployment here"
-          # e.g. kubectl apply ..., terraform apply ..., etc.
-
-      # 3) Mark success (must set deployment status at least once)
-      - name: Mark deployment success
-        if: success()
-        uses: chrnorm/deployment-status@releases/v1
-        with:
-          token: ${{ github.token }}
-          deployment_id: ${{ steps.create_deployment.outputs.deployment_id }}
-          state: success
-          environment: production
-
-      # 4) Mark failure (so Jira/GitHub also see failed deploys)
-      - name: Mark deployment failure
-        if: failure()
-        uses: chrnorm/deployment-status@releases/v1
-        with:
-          token: ${{ github.token }}
-          deployment_id: ${{ steps.create_deployment.outputs.deployment_id }}
-          state: failure
-          environment: production
+          echo "# Deployment Triggered 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "| Name | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :----: |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | **PENDING** |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy ID | ${{ steps.create_deployment.outputs.deployment_id }} |" >> $GITHUB_STEP_SUMMARY
