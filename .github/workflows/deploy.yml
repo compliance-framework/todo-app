@@ -1,11 +1,56 @@
-name: deploy-env
+name: Deploy (reports GitHub Deployment Status to Atlassian)
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  deployments: write
 
 jobs:
   deploy:
+    name: Deploy
     runs-on: ubuntu-latest
     environment: production
+
     steps:
-      - run: echo "This is a deployment I swear!"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 1) Create a GitHub Deployment (this is what Atlassian ultimately tracks via deployment_status)
+      - name: Create deployment
+        id: create_deployment
+        uses: chrnorm/deployment-action@releases/v1
+        with:
+          token: ${{ github.token }}
+          environment: production
+          # Optional: set this if you have a URL to show in Jira/GitHub deployments UI
+          # environment_url: https://your-app.example.com
+
+      # 2) Your real deploy step(s) go here
+      - name: Deploy
+        run: |
+          echo "Do your real deployment here"
+          # e.g. kubectl apply ..., terraform apply ..., etc.
+
+      # 3) Mark success (must set deployment status at least once)
+      - name: Mark deployment success
+        if: success()
+        uses: chrnorm/deployment-status@releases/v1
+        with:
+          token: ${{ github.token }}
+          deployment_id: ${{ steps.create_deployment.outputs.deployment_id }}
+          state: success
+          environment: production
+
+      # 4) Mark failure (so Jira/GitHub also see failed deploys)
+      - name: Mark deployment failure
+        if: failure()
+        uses: chrnorm/deployment-status@releases/v1
+        with:
+          token: ${{ github.token }}
+          deployment_id: ${{ steps.create_deployment.outputs.deployment_id }}
+          state: failure
+          environment: production
