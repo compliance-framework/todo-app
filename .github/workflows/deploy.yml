@@ -135,48 +135,7 @@ jobs:
             "requestTypeId": "10498",
             "requestFieldValues": {
               "summary": "[Automated Change] - Deployment for release ${{ steps.release-info.outputs.release_tag }}",
-              "description": {
-                "type": "doc",
-                "version": 1,
-                "content": [
-                  {
-                    "type": "paragraph",
-                    "content": [
-                      {
-                        "type": "text",
-                        "text": "Automated deployment request for release ${{ steps.release-info.outputs.release_tag }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "paragraph",
-                    "content": [
-                      {
-                        "type": "text",
-                        "text": "Release URL: ${{ steps.release-info.outputs.release_url }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "paragraph",
-                    "content": [
-                      {
-                        "type": "text",
-                        "text": "Deployment ID: ${{ steps.deployment.outputs.deployment_id }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "paragraph",
-                    "content": [
-                      {
-                        "type": "text",
-                        "text": "Repository: ${{ github.repository }}"
-                      }
-                    ]
-                  }
-                ]
-              },
+              "description": "Automated deployment request for release ${{ steps.release-info.outputs.release_tag }}\nRelease URL: ${{ steps.release-info.outputs.release_url }}\nDeployment ID: ${{ steps.deployment.outputs.deployment_id }}\nRepository: ${{ github.repository }}",
               "customfield_10496": "${{ steps.deployment.outputs.deployment_id }}",
               "customfield_10499": "https://github.com/${{ github.repository }}/deployments/${{ steps.deployment.outputs.deployment_id }}",
               "customfield_10498": "${{ steps.release-info.outputs.release_url }}",
