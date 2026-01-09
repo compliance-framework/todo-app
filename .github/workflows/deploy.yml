@@ -13,7 +13,7 @@ on:
 env:
   SERVICE_ID: ${{ vars.SERVICE_ID }}
   JIRA_URL: ${{ vars.JIRA_URL }}
-  SERVICE_DESK_PROJECT_KEY: ${{ vars.SERVICE_DESK_PROJECT_KEY }}
+  JIRA_SERVICE_DESK_ID: ${{ vars.JIRA_SERVICE_DESK_ID }}
 
 jobs:
   create-deployment-and-jira-ticket:
@@ -96,28 +96,6 @@ jobs:
           echo "::add-mask::$ACCESS_TOKEN"
           echo "access_token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
 
-      - name: Get Service Desk ID from Project
-        id: service-desk-id
-        run: |
-          # Get project details to find the service desk ID
-          RESPONSE=$(curl -s -w "\n%{http_code}" \
-            "https://api.atlassian.com/ex/jira/${{ steps.jira-cloud-id.outputs.cloud_id }}/rest/api/3/project/${{ env.SERVICE_DESK_PROJECT_KEY }}" \
-            -H "Authorization: Bearer ${{ steps.jira-auth.outputs.access_token }}" \
-            -H "Accept: application/json")
-          
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          
-          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            PROJECT_ID=$(echo "$BODY" | jq -r '.id')
-            echo "Successfully retrieved project ID: $PROJECT_ID"
-            echo "service_desk_id=$PROJECT_ID" >> $GITHUB_OUTPUT
-          else
-            echo "Failed to get project details"
-            echo "Response: $BODY"
-            exit 1
-          fi
-
       - name: Create GitHub Deployment
         id: deployment
         uses: chrnorm/deployment-action@v2
@@ -132,7 +110,7 @@ jobs:
           # Prepare the request body
           REQUEST_BODY=$(cat <<EOF
           {
-            "serviceDeskId": "${{ steps.service-desk-id.outputs.service_desk_id }}",
+            "serviceDeskId": "${{ env.JIRA_SERVICE_DESK_ID }}",
             "requestTypeId": "10498",
             "requestFieldValues": {
               "summary": "[Automated Change] - Deployment for release ${{ steps.release-info.outputs.release_tag }}",
