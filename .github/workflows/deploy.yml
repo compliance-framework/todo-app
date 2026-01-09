@@ -13,7 +13,7 @@ on:
 env:
   SERVICE_ID: ${{ vars.SERVICE_ID }}
   JIRA_URL: ${{ vars.JIRA_URL }}
-  JIRA_SERVICE_DESK_ID: ${{ vars.JIRA_SERVICE_DESK_ID }}
+  SERVICE_DESK_PROJECT_KEY: ${{ vars.SERVICE_DESK_PROJECT_KEY }}
 
 jobs:
   create-deployment-and-jira-ticket:
@@ -82,7 +82,7 @@ jobs:
               "grant_type": "client_credentials",
               "client_id": "${{ secrets.JIRA_CLIENT_ID }}",
               "client_secret": "${{ secrets.JIRA_CLIENT_SECRET }}",
-              "scope": "write:servicedesk-request"
+              "scope": "write:servicedesk-request read:servicedesk-request"
             }')
           
           ACCESS_TOKEN=$(echo $RESPONSE | jq -r '.access_token')
@@ -95,6 +95,27 @@ jobs:
           
           echo "::add-mask::$ACCESS_TOKEN"
           echo "access_token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Get Service Desk ID from Project Key
+        id: service-desk-id
+        run: |
+          # Fetch all service desks and filter by project key
+          RESPONSE=$(curl -s \
+            "https://api.atlassian.com/ex/jira/${{ steps.jira-cloud-id.outputs.cloud_id }}/rest/servicedeskapi/servicedesk" \
+            -H "Authorization: Bearer ${{ steps.jira-auth.outputs.access_token }}" \
+            -H "Accept: application/json")
+          
+          # Filter by project key to get the service desk ID
+          SERVICE_DESK_ID=$(echo "$RESPONSE" | jq -r ".values[] | select(.projectKey == \"${{ env.SERVICE_DESK_PROJECT_KEY }}\") | .id")
+          
+          if [ "$SERVICE_DESK_ID" = "null" ] || [ -z "$SERVICE_DESK_ID" ]; then
+            echo "Failed to find Service Desk ID for project key: ${{ env.SERVICE_DESK_PROJECT_KEY }}"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
+          
+          echo "Successfully retrieved Service Desk ID: $SERVICE_DESK_ID"
+          echo "service_desk_id=$SERVICE_DESK_ID" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Deployment
         id: deployment
@@ -110,7 +131,7 @@ jobs:
           # Prepare the request body
           REQUEST_BODY=$(cat <<EOF
           {
-            "serviceDeskId": "${{ env.JIRA_SERVICE_DESK_ID }}",
+            "serviceDeskId": "${{ steps.service-desk-id.outputs.service_desk_id }}",
             "requestTypeId": "10498",
             "requestFieldValues": {
               "summary": "[Automated Change] - Deployment for release ${{ steps.release-info.outputs.release_tag }}",
