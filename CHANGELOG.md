@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/compliance-framework/todo-app/compare/v0.2.4...v0.3.0) (2026-01-09)
+
+
+### Features
+
+* add finish-deploy github action ([#25](https://github.com/compliance-framework/todo-app/issues/25)) ([a60980e](https://github.com/compliance-framework/todo-app/commit/a60980e58541d81fca456c7df7004f7fb8b2039a))
+
 ## [0.2.4](https://github.com/compliance-framework/todo-app/compare/v0.2.3...v0.2.4) (2026-01-09)
 
 
