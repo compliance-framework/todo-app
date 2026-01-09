@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/compliance-framework/todo-app/compare/v0.1.2...v0.2.0) (2026-01-09)
+
+
+### Features
+
+* codeowners ([3a3eed1](https://github.com/compliance-framework/todo-app/commit/3a3eed1e6940534701583c8348a01da5be23ce16))
+* workflow for deploy and integrate with jira ([8c2d11b](https://github.com/compliance-framework/todo-app/commit/8c2d11b52b97a7a3d332dea1bba14116eb672a86))
+
 ## [0.1.2](https://github.com/compliance-framework/todo-app/compare/v0.1.1...v0.1.2) (2025-12-17)
 
 
