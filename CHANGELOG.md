@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/compliance-framework/todo-app/compare/v0.2.2...v0.2.3) (2026-01-09)
+
+
+### Bug Fixes
+
+* deploy ([#21](https://github.com/compliance-framework/todo-app/issues/21)) ([a1a55f4](https://github.com/compliance-framework/todo-app/commit/a1a55f4024c161189745d3c5bed2bcd8c097b5cd))
+
 ## [0.2.2](https://github.com/compliance-framework/todo-app/compare/v0.2.1...v0.2.2) (2026-01-09)
 
 
