@@ -1,0 +1,30 @@
+name: Finish deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_id:
+        required: true
+        type: string
+      state:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  finish-deploy:
+    name: Update Deploy status
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Mark deployment state
+        uses: chrnorm/deployment-status@releases/v1
+        with:
+          token: ${{ github.token }}
+          deployment_id: ${{ inputs.deployment_id }}
+          state: ${{ inputs.state }}
+          environment: production
