@@ -1,0 +1,189 @@
+name: Deploy on Release
+
+on:
+  release:
+    types: [published]
+
+env:
+  SERVICE_ID: ${{ vars.SERVICE_ID }}
+  JIRA_URL: ${{ vars.JIRA_URL }}
+  SERVICE_DESK_PROJECT_KEY: ${{ vars.SERVICE_DESK_PROJECT_KEY }}
+
+jobs:
+  create-deployment-and-jira-ticket:
+    name: Create Deployment and Jira Ticket
+    runs-on: ubuntu-latest
+    permissions:
+      deployments: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get Jira Cloud ID
+        id: jira-cloud-id
+        run: |
+          # Fetch Cloud ID from unauthenticated endpoint
+          RESPONSE=$(curl -s "${{ env.JIRA_URL }}/_edge/tenant_info")
+          
+          CLOUD_ID=$(echo $RESPONSE | jq -r '.cloudId')
+          
+          if [ "$CLOUD_ID" = "null" ] || [ -z "$CLOUD_ID" ]; then
+            echo "Failed to get Cloud ID"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
+          
+          echo "Successfully retrieved Cloud ID: $CLOUD_ID"
+          echo "cloud_id=$CLOUD_ID" >> $GITHUB_OUTPUT
+
+      - name: Get Jira OAuth Token
+        id: jira-auth
+        run: |
+          # OAuth 2.0 2LO (2-legged OAuth) token generation
+          RESPONSE=$(curl -s -X POST https://api.atlassian.com/oauth/token \
+            -H "Content-Type: application/json" \
+            -d '{
+              "audience": "api.atlassian.com",
+              "grant_type": "client_credentials",
+              "client_id": "${{ secrets.JIRA_CLIENT_ID }}",
+              "client_secret": "${{ secrets.JIRA_CLIENT_SECRET }}",
+              "scope": "write:servicedesk-request"
+            }')
+          
+          ACCESS_TOKEN=$(echo $RESPONSE | jq -r '.access_token')
+          
+          if [ "$ACCESS_TOKEN" = "null" ] || [ -z "$ACCESS_TOKEN" ]; then
+            echo "Failed to get access token"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
+          
+          echo "::add-mask::$ACCESS_TOKEN"
+          echo "access_token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Get Service Desk ID from Project
+        id: service-desk-id
+        run: |
+          # Get project details to find the service desk ID
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            "https://api.atlassian.com/ex/jira/${{ steps.jira-cloud-id.outputs.cloud_id }}/rest/api/3/project/${{ env.SERVICE_DESK_PROJECT_KEY }}" \
+            -H "Authorization: Bearer ${{ steps.jira-auth.outputs.access_token }}" \
+            -H "Accept: application/json")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            PROJECT_ID=$(echo "$BODY" | jq -r '.id')
+            echo "Successfully retrieved project ID: $PROJECT_ID"
+            echo "service_desk_id=$PROJECT_ID" >> $GITHUB_OUTPUT
+          else
+            echo "Failed to get project details"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+      - name: Create GitHub Deployment
+        id: deployment
+        uses: chrnorm/deployment-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment: production
+          description: "[Automated Change] - Deployment for release ${{ github.event.release.tag_name }}"
+
+      - name: Create Jira Service Management Customer Request
+        id: jira-ticket
+        run: |
+          # Prepare the request body
+          REQUEST_BODY=$(cat <<EOF
+          {
+            "serviceDeskId": "${{ steps.service-desk-id.outputs.service_desk_id }}",
+            "requestTypeId": "10498",
+            "requestFieldValues": {
+              "summary": "[Automated Change] - Deployment for release ${{ github.event.release.tag_name }}",
+              "description": {
+                "type": "doc",
+                "version": 1,
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Automated deployment request for release ${{ github.event.release.tag_name }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Release URL: ${{ github.event.release.html_url }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Deployment ID: ${{ steps.deployment.outputs.deployment_id }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Repository: ${{ github.repository }}"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "customfield_10496": "${{ steps.deployment.outputs.deployment_id }}",
+              "customfield_10499": "https://github.com/${{ github.repository }}/deployments/${{ steps.deployment.outputs.deployment_id }}",
+              "customfield_10498": "${{ github.event.release.html_url }}",
+              "customfield_10497": "${{ env.SERVICE_ID }}"
+            }
+          }
+          EOF
+          )
+
+          # Create the customer request
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://api.atlassian.com/ex/jira/${{ steps.jira-cloud-id.outputs.cloud_id }}/rest/servicedeskapi/request" \
+            -H "Authorization: Bearer ${{ steps.jira-auth.outputs.access_token }}" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d "$REQUEST_BODY")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "HTTP Status Code: $HTTP_CODE"
+          echo "Response Body: $BODY"
+          
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            ISSUE_KEY=$(echo "$BODY" | jq -r '.issueKey')
+            echo "Successfully created Jira ticket: $ISSUE_KEY"
+            echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
+          else
+            echo "Failed to create Jira ticket"
+            echo "Response: $BODY"
+            exit 1
+          fi
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release**: ${{ github.event.release.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release URL**: ${{ github.event.release.html_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployment ID**: ${{ steps.deployment.outputs.deployment_id }}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ steps.jira-ticket.outputs.issue_key }}" ]; then
+            echo "- **Jira Ticket**: ${{ steps.jira-ticket.outputs.issue_key }}" >> $GITHUB_STEP_SUMMARY
+          fi
