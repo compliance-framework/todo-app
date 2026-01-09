@@ -3,6 +3,12 @@ name: Deploy on Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag name (e.g., v1.0.0)'
+        required: true
+        type: string
 
 env:
   SERVICE_ID: ${{ vars.SERVICE_ID }}
@@ -15,10 +21,38 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       deployments: write
-      contents: read
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Get Release Information
+        id: release-info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger - fetch release info from GitHub API
+            RELEASE_TAG="${{ inputs.release_tag }}"
+            RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/${RELEASE_TAG}")
+            
+            RELEASE_URL=$(echo "$RESPONSE" | jq -r '.html_url')
+            TAG_NAME=$(echo "$RESPONSE" | jq -r '.tag_name')
+            
+            if [ "$RELEASE_URL" = "null" ] || [ -z "$RELEASE_URL" ]; then
+              echo "Failed to fetch release information for tag: $RELEASE_TAG"
+              exit 1
+            fi
+            
+            echo "release_tag=$TAG_NAME" >> $GITHUB_OUTPUT
+            echo "release_url=$RELEASE_URL" >> $GITHUB_OUTPUT
+          else
+            # Automatic release trigger
+            echo "release_tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+            echo "release_url=${{ github.event.release.html_url }}" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "Release Tag: $(cat $GITHUB_OUTPUT | grep release_tag | cut -d= -f2)"
+          echo "Release URL: $(cat $GITHUB_OUTPUT | grep release_url | cut -d= -f2)"
 
       - name: Get Jira Cloud ID
         id: jira-cloud-id
@@ -90,7 +124,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           environment: production
-          description: "[Automated Change] - Deployment for release ${{ github.event.release.tag_name }}"
+          description: "[Automated Change] - Deployment for release ${{ steps.release-info.outputs.release_tag }}"
 
       - name: Create Jira Service Management Customer Request
         id: jira-ticket
@@ -101,7 +135,7 @@ jobs:
             "serviceDeskId": "${{ steps.service-desk-id.outputs.service_desk_id }}",
             "requestTypeId": "10498",
             "requestFieldValues": {
-              "summary": "[Automated Change] - Deployment for release ${{ github.event.release.tag_name }}",
+              "summary": "[Automated Change] - Deployment for release ${{ steps.release-info.outputs.release_tag }}",
               "description": {
                 "type": "doc",
                 "version": 1,
@@ -111,7 +145,7 @@ jobs:
                     "content": [
                       {
                         "type": "text",
-                        "text": "Automated deployment request for release ${{ github.event.release.tag_name }}"
+                        "text": "Automated deployment request for release ${{ steps.release-info.outputs.release_tag }}"
                       }
                     ]
                   },
@@ -120,7 +154,7 @@ jobs:
                     "content": [
                       {
                         "type": "text",
-                        "text": "Release URL: ${{ github.event.release.html_url }}"
+                        "text": "Release URL: ${{ steps.release-info.outputs.release_url }}"
                       }
                     ]
                   },
@@ -146,7 +180,7 @@ jobs:
               },
               "customfield_10496": "${{ steps.deployment.outputs.deployment_id }}",
               "customfield_10499": "https://github.com/${{ github.repository }}/deployments/${{ steps.deployment.outputs.deployment_id }}",
-              "customfield_10498": "${{ github.event.release.html_url }}",
+              "customfield_10498": "${{ steps.release-info.outputs.release_url }}",
               "customfield_10497": "${{ env.SERVICE_ID }}"
             }
           }
@@ -181,8 +215,8 @@ jobs:
         run: |
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Release**: ${{ github.event.release.tag_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Release URL**: ${{ github.event.release.html_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release**: ${{ steps.release-info.outputs.release_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release URL**: ${{ steps.release-info.outputs.release_url }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Deployment ID**: ${{ steps.deployment.outputs.deployment_id }}" >> $GITHUB_STEP_SUMMARY
           if [ -n "${{ steps.jira-ticket.outputs.issue_key }}" ]; then
             echo "- **Jira Ticket**: ${{ steps.jira-ticket.outputs.issue_key }}" >> $GITHUB_STEP_SUMMARY
