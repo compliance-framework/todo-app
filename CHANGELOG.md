@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/compliance-framework/todo-app/compare/v0.3.0...v0.4.0) (2026-01-12)
+
+
+### Features
+
+* lin k deploy to CR issue ([#27](https://github.com/compliance-framework/todo-app/issues/27)) ([3fbc652](https://github.com/compliance-framework/todo-app/commit/3fbc6523af1d922bfd9812e818a7f05ee3678cc2))
+
 ## [0.3.0](https://github.com/compliance-framework/todo-app/compare/v0.2.4...v0.3.0) (2026-01-09)
 
 
