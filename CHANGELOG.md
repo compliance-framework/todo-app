@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/compliance-framework/todo-app/compare/v0.4.0...v0.4.1) (2026-01-16)
+
+
+### Bug Fixes
+
+* add release tag on jira ([#29](https://github.com/compliance-framework/todo-app/issues/29)) ([724bc2c](https://github.com/compliance-framework/todo-app/commit/724bc2ca22a2d9c0df01f7918cb37febc627f2b6))
+
 ## [0.4.0](https://github.com/compliance-framework/todo-app/compare/v0.3.0...v0.4.0) (2026-01-12)
 
 
