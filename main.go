@@ -96,8 +96,3 @@ func main() {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
-
-// This is an unused function to serve as a demonstration of capabilities
-func unusedFunction(logger *log.Logger) {
-	logger.Println("This function is unused")
-}
