@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/compliance-framework/todo-app/compare/v0.4.2...v0.4.3) (2026-02-06)
+
+
+### Bug Fixes
+
+* remove unused functions ([#33](https://github.com/compliance-framework/todo-app/issues/33)) ([12e880b](https://github.com/compliance-framework/todo-app/commit/12e880b7ad2fa43ff2842406ac3fc2282f95c378))
+
 ## [0.4.2](https://github.com/compliance-framework/todo-app/compare/v0.4.1...v0.4.2) (2026-01-22)
 
 
