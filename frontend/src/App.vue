@@ -81,16 +81,29 @@ async function loadTodos() {
 }
 
 async function submitAuth() {
-  authLoading.value = true;
   clearMessages();
+
+  const username = authForm.username.trim();
+
+  if (!username) {
+    errorMessage.value = "Username is required.";
+    return;
+  }
+
+  if (authMode.value === "register" && username.length < 3) {
+    errorMessage.value = "Username must be at least 3 characters.";
+    return;
+  }
+
+  authLoading.value = true;
 
   try {
     if (authMode.value === "register") {
-      await api.register(authForm.username, authForm.password);
+      await api.register(username, authForm.password);
       statusMessage.value = "Account created.";
     }
 
-    const response = await api.login(authForm.username, authForm.password);
+    const response = await api.login(username, authForm.password);
     setSession(response.token, response.user);
     authForm.password = "";
     statusMessage.value = authMode.value === "register" ? "Account created and signed in." : "Signed in.";
@@ -108,13 +121,22 @@ async function createTodo() {
     return;
   }
 
-  savingTodo.value = true;
   clearMessages();
+
+  const title = todoForm.title.trim();
+  const description = todoForm.description.trim();
+
+  if (!title) {
+    errorMessage.value = "Todo title is required.";
+    return;
+  }
+
+  savingTodo.value = true;
 
   try {
     const createdTodo = await api.createTodo({
-      title: todoForm.title.trim(),
-      description: todoForm.description.trim(),
+      title,
+      description,
     });
     todos.value = [createdTodo, ...todos.value];
     todoForm.title = "";
@@ -143,10 +165,18 @@ function cancelEditing() {
 async function saveTodo(todo: Todo) {
   clearMessages();
 
+  const title = editForm.title.trim();
+  const description = editForm.description.trim();
+
+  if (!title) {
+    errorMessage.value = "Todo title is required.";
+    return;
+  }
+
   try {
     const updatedTodo = await api.updateTodo(todo.id, {
-      title: editForm.title.trim(),
-      description: editForm.description.trim(),
+      title,
+      description,
     });
     replaceTodo(updatedTodo);
     cancelEditing();
@@ -229,6 +259,10 @@ function clearMessages() {
 }
 
 function setError(error: unknown, fallback: string) {
+  if (error instanceof ApiError && error.status === 401 && errorMessage.value) {
+    return;
+  }
+
   errorMessage.value = error instanceof ApiError ? error.message : fallback;
 }
 
@@ -272,7 +306,8 @@ function readStoredUser() {
             ? 'border-destructive/35 bg-destructive/10 text-destructive'
             : 'border-primary/25 bg-primary/10 text-primary'
         "
-        role="status"
+        :role="errorMessage ? 'alert' : 'status'"
+        :aria-live="errorMessage ? 'assertive' : 'polite'"
       >
         {{ errorMessage || statusMessage }}
       </div>
