@@ -342,6 +342,26 @@ func Test_Auth_N_002_OIDCConfigOAuth2ConfigUnconfigured(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for unconfigured OIDC config")
 	}
+
+	resetOIDCProviderCacheForTest()
+	t.Cleanup(resetOIDCProviderCacheForTest)
+
+	issuer := "https://issuer.example.com"
+	client := &http.Client{Transport: authRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return authJSONResponse(http.StatusInternalServerError, "{}"), nil
+	})}
+	ctx := oidc.ClientContext(t.Context(), client)
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
+
+	_, _, err = (OIDCConfig{
+		IssuerURL:    issuer,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		RedirectURL:  "https://app.example.com/callback",
+	}).OAuth2Config(ctx)
+	if err == nil {
+		t.Error("Expected error for failed OIDC provider discovery")
+	}
 }
 
 func Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess(t *testing.T) {
@@ -349,10 +369,12 @@ func Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess(t *testing.T) {
 	t.Cleanup(resetOIDCProviderCacheForTest)
 
 	issuer := "https://issuer.example.com"
+	var discoveryRequests atomic.Int32
 	client := &http.Client{Transport: authRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Path != "/.well-known/openid-configuration" {
 			return authJSONResponse(http.StatusNotFound, "{}"), nil
 		}
+		discoveryRequests.Add(1)
 		return authJSONResponse(http.StatusOK, `{
 			"issuer":"`+issuer+`",
 			"authorization_endpoint":"`+issuer+`/auth",
@@ -378,6 +400,25 @@ func Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess(t *testing.T) {
 	}
 	if verifier == nil {
 		t.Error("Expected ID token verifier")
+	}
+
+	cachedOAuthConfig, cachedVerifier, err := (OIDCConfig{
+		IssuerURL:    issuer,
+		ClientID:     "client-id",
+		ClientSecret: "different-client-secret",
+		RedirectURL:  "https://app.example.com/other-callback",
+	}).OAuth2Config(ctx)
+	if err != nil {
+		t.Fatalf("Second OAuth2Config returned error: %v", err)
+	}
+	if got := discoveryRequests.Load(); got != 1 {
+		t.Fatalf("Expected cached provider discovery on second call, got %d requests", got)
+	}
+	if cachedOAuthConfig.ClientSecret != "different-client-secret" || cachedOAuthConfig.RedirectURL != "https://app.example.com/other-callback" {
+		t.Fatalf("Expected uncached caller-specific OAuth2 fields, got secret %q redirect %q", cachedOAuthConfig.ClientSecret, cachedOAuthConfig.RedirectURL)
+	}
+	if cachedVerifier != verifier {
+		t.Error("Expected verifier to come from cached provider entry")
 	}
 }
 
