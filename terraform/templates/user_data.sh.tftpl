@@ -9,18 +9,18 @@ chmod 0755 /opt/todo-app/bootstrap.sh
 
 install -d -m 0750 /etc/todo-app
 cat >/etc/todo-app/bootstrap.env <<'BOOTSTRAP_ENV'
-APP_PORT=${app_port}
-AWS_REGION=${aws_region}
-COSIGN_CERTIFICATE_IDENTITY_REGEXP=${cosign_certificate_identity_regexp}
-COSIGN_CERTIFICATE_OIDC_ISSUER=${cosign_certificate_oidc_issuer}
-COSIGN_LINUX_AMD64_SHA256=${cosign_linux_amd64_sha256}
-COSIGN_LINUX_ARM64_SHA256=${cosign_linux_arm64_sha256}
-COSIGN_VERSION=${cosign_version}
-FALLBACK_RELEASE_TAG=${fallback_release_tag}
-GITHUB_REPOSITORY=${github_repository}
-RELEASE_ARTIFACT_NAME=${release_artifact_name}
-RELEASE_SIGNATURE_BUNDLE_NAME=${release_signature_bundle_name}
-RELEASE_TAG_PARAMETER_NAME=${release_tag_parameter_name}
+APP_PORT=${jsonencode(app_port)}
+AWS_REGION=${jsonencode(aws_region)}
+COSIGN_CERTIFICATE_IDENTITY_REGEXP=${jsonencode(cosign_certificate_identity_regexp)}
+COSIGN_CERTIFICATE_OIDC_ISSUER=${jsonencode(cosign_certificate_oidc_issuer)}
+COSIGN_LINUX_AMD64_SHA256=${jsonencode(cosign_linux_amd64_sha256)}
+COSIGN_LINUX_ARM64_SHA256=${jsonencode(cosign_linux_arm64_sha256)}
+COSIGN_VERSION=${jsonencode(cosign_version)}
+FALLBACK_RELEASE_TAG=${jsonencode(fallback_release_tag)}
+GITHUB_REPOSITORY=${jsonencode(github_repository)}
+RELEASE_ARTIFACT_NAME=${jsonencode(release_artifact_name)}
+RELEASE_SIGNATURE_BUNDLE_NAME=${jsonencode(release_signature_bundle_name)}
+RELEASE_TAG_PARAMETER_NAME=${jsonencode(release_tag_parameter_name)}
 BOOTSTRAP_ENV
 chmod 0640 /etc/todo-app/bootstrap.env
 

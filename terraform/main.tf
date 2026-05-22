@@ -433,7 +433,7 @@ resource "aws_ssm_document" "upgrade" {
         name   = "runBootstrap"
         inputs = {
           runCommand = [
-            "sudo /opt/todo-app/bootstrap.sh"
+            "/opt/todo-app/bootstrap.sh"
           ]
         }
       }

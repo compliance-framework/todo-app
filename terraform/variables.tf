@@ -8,12 +8,22 @@ variable "environment" {
   description = "Environment name used for tags and resource names."
   type        = string
   default     = "soc2-demo"
+
+  validation {
+    condition     = can(regex("^([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$", var.environment))
+    error_message = "environment must contain only lowercase letters, numbers, and hyphens, and must not start or end with a hyphen."
+  }
 }
 
 variable "name_prefix" {
   description = "Prefix for provisioned resource names."
   type        = string
   default     = "todo-app"
+
+  validation {
+    condition     = can(regex("^([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$", var.name_prefix))
+    error_message = "name_prefix must contain only lowercase letters, numbers, and hyphens, and must not start or end with a hyphen."
+  }
 }
 
 variable "alb_certificate_arn" {
