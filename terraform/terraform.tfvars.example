@@ -1,0 +1,13 @@
+domain_name         = "todo.example.com"
+alb_certificate_arn = "arn:aws:acm:eu-west-2:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+
+release_tag = "v1.0.0"
+
+# Optional overrides.
+# github_repository              = "ContainerSolutions/todo-app"
+# release_artifact_name          = "todo-app-linux-amd64"
+# release_signature_bundle_name  = "todo-app-linux-amd64.bundle"
+# oidc_issuer_url                = "https://issuer.example.com"
+# oidc_client_id                 = "todo-app"
+# jwt_secret_ssm_parameter_name  = "/todo-app/jwt-secret"
+# cors_allowed_origin            = "https://todo.example.com"
