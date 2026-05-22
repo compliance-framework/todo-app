@@ -27,6 +27,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_P_006 | Test_REQ01_P_006_RegisterSuccess | Positive | handlers/handlers_test.go | Verify user can register a new account |
 | REQ01_P_007 | Test_REQ01_P_007_AuthConfig | Positive | handlers/handlers_test.go | Verify auth config reports OIDC availability |
 | REQ01_P_008 | Test_REQ01_P_008_UpsertOIDCUserCreateAndFind | Positive | handlers/handlers_test.go | Verify OIDC users are created and reused |
+| REQ01_P_008B | Test_REQ01_P_008B_UpsertOIDCUserRetriesAfterCreateRace | Positive | handlers/handlers_test.go | Verify OIDC upsert retries after a duplicate create race |
 | REQ01_P_009 | Test_REQ01_P_009_UpsertOIDCUserAttachByEmail | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by email |
 | REQ01_P_010 | Test_REQ01_P_010_OIDCUtilities | Positive | handlers/handlers_test.go | Verify OIDC utility helpers |
 | REQ01_P_011 | Test_REQ01_P_011_OIDCLoginRedirect | Positive | handlers/handlers_test.go | Verify OIDC login redirects to provider |
@@ -159,12 +160,12 @@ This document provides traceability from software requirements to test cases, en
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 50 | 19 | 23 | 8 |
+| REQ01 | 51 | 20 | 23 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
 | Infrastructure | 35 | 25 | 10 | 0 |
-| **Total** | **115** | **52** | **47** | **16** |
+| **Total** | **116** | **53** | **47** | **16** |
 
 ## 5. Code Coverage
 
