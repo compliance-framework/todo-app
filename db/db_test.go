@@ -487,6 +487,19 @@ func Test_DB_P_008_SmallHelpers(t *testing.T) {
 		t.Error("Expected empty bool to return fallback")
 	}
 
+	t.Setenv("TEST_INT", "")
+	if envIntOrDefault("TEST_INT", 7) != 7 {
+		t.Error("Expected empty int to return fallback")
+	}
+	t.Setenv("TEST_INT", "not-int")
+	if envIntOrDefault("TEST_INT", 7) != 7 {
+		t.Error("Expected invalid int to return fallback")
+	}
+	t.Setenv("TEST_INT", "3")
+	if envIntOrDefault("TEST_INT", 7) != 3 {
+		t.Error("Expected parsed int value")
+	}
+
 	if firstNonEmpty("", "first", "second") != "first" {
 		t.Error("Expected first non-empty value")
 	}

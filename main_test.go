@@ -104,6 +104,23 @@ func Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
 		!strings.Contains(logs.String(), `"status":500`) {
 		t.Errorf("Expected recovered panic request to be audit logged, got %q", logs.String())
 	}
+
+	logs.Reset()
+	router.GET("/audit-user", func(c *gin.Context) {
+		c.Set("user_id", uint(42))
+		c.Status(http.StatusNoContent)
+	})
+	req, _ = http.NewRequestWithContext(t.Context(), "GET", "/audit-user", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Errorf("Expected status %d, got %d", http.StatusNoContent, w.Code)
+	}
+	if !strings.Contains(logs.String(), `"path":"/audit-user"`) ||
+		!strings.Contains(logs.String(), `"user_id":42`) {
+		t.Errorf("Expected user ID to be audit logged, got %q", logs.String())
+	}
 }
 
 // Test_Main_P_003_CORSMiddlewareDefaultSameOrigin verifies CORS does not allow all origins by default.
