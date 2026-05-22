@@ -166,7 +166,8 @@ func OIDCCallback(c *gin.Context) {
 		return
 	}
 
-	oauthConfig, verifier, err := auth.OIDCConfigFromEnv().OAuth2Config(c.Request.Context())
+	oidcConfig := auth.OIDCConfigFromEnv()
+	oauthConfig, verifier, err := oidcConfig.OAuth2Config(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "OIDC login is not configured"})
 		return
@@ -200,7 +201,7 @@ func OIDCCallback(c *gin.Context) {
 		return
 	}
 
-	user, err := upsertOIDCUser(auth.OIDCConfigFromEnv().IssuerURL, claims)
+	user, err := upsertOIDCUser(oidcConfig.IssuerURL, claims)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upsert OIDC user"})
 		return

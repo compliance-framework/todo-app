@@ -13,7 +13,7 @@ A simple Todo List web application built with Go, demonstrating DO-178C complian
 
 ## Tech Stack
 
-- **Language**: Go 1.21+
+- **Language**: Go 1.25+
 - **Web Framework**: Gin
 - **Database**: SQLite or PostgreSQL with GORM
 - **Authentication**: JWT (golang-jwt/jwt/v5), optional OIDC login

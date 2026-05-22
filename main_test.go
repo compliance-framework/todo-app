@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -65,7 +66,13 @@ func Test_Main_P_002B_AuthConfig(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
 	}
-	if w.Body.String() != "{\"oidc_configured\":false}" {
+	var response struct {
+		OIDCConfigured bool `json:"oidc_configured"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal auth config response: %v", err)
+	}
+	if response.OIDCConfigured {
 		t.Errorf("Expected OIDC disabled config, got %s", w.Body.String())
 	}
 }

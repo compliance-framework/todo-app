@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
@@ -24,6 +25,23 @@ type OIDCClaims struct {
 	EmailVerified     bool   `json:"email_verified"`
 	Name              string `json:"name"`
 	PreferredUsername string `json:"preferred_username"`
+}
+
+type oidcProviderCacheKey struct {
+	issuerURL string
+	clientID  string
+}
+
+type oidcProviderCacheEntry struct {
+	endpoint oauth2.Endpoint
+	verifier *oidc.IDTokenVerifier
+}
+
+var oidcProviderCache = struct {
+	sync.Mutex
+	entries map[oidcProviderCacheKey]oidcProviderCacheEntry
+}{
+	entries: make(map[oidcProviderCacheKey]oidcProviderCacheEntry),
 }
 
 // OIDCConfigFromEnv reads OIDC settings from environment variables.
@@ -52,18 +70,31 @@ func (cfg OIDCConfig) OAuth2Config(ctx context.Context) (*oauth2.Config, *oidc.I
 		return nil, nil, errors.New("OIDC is not configured")
 	}
 
-	provider, err := oidc.NewProvider(ctx, cfg.IssuerURL)
-	if err != nil {
-		return nil, nil, err
+	cacheKey := oidcProviderCacheKey{issuerURL: cfg.IssuerURL, clientID: cfg.ClientID}
+	oidcProviderCache.Lock()
+	entry, ok := oidcProviderCache.entries[cacheKey]
+	oidcProviderCache.Unlock()
+	if !ok {
+		provider, err := oidc.NewProvider(ctx, cfg.IssuerURL)
+		if err != nil {
+			return nil, nil, err
+		}
+		entry = oidcProviderCacheEntry{
+			endpoint: provider.Endpoint(),
+			verifier: provider.Verifier(&oidc.Config{ClientID: cfg.ClientID}),
+		}
+		oidcProviderCache.Lock()
+		oidcProviderCache.entries[cacheKey] = entry
+		oidcProviderCache.Unlock()
 	}
 
 	oauthConfig := &oauth2.Config{
 		ClientID:     cfg.ClientID,
 		ClientSecret: cfg.ClientSecret,
 		RedirectURL:  cfg.RedirectURL,
-		Endpoint:     provider.Endpoint(),
+		Endpoint:     entry.endpoint,
 		Scopes:       []string{oidc.ScopeOpenID, "email", "profile"},
 	}
 
-	return oauthConfig, provider.Verifier(&oidc.Config{ClientID: cfg.ClientID}), nil
+	return oauthConfig, entry.verifier, nil
 }
