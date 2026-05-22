@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -230,7 +231,8 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		return models.User{}, err
 	}
 
-	if claims.Email != "" {
+	claims.Email = strings.TrimSpace(claims.Email)
+	if claims.Email != "" && claims.EmailVerified {
 		err = db.GetDB().Where("email = ? OR username = ?", claims.Email, claims.Email).First(&user).Error
 		if err == nil {
 			return attachOIDCIdentity(user, issuer, claims)
@@ -240,8 +242,12 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		}
 	}
 
+	usernameClaims := claims
+	if !claims.EmailVerified {
+		usernameClaims.Email = ""
+	}
 	user = models.User{
-		Username:     oidcUsername(claims),
+		Username:     oidcUsername(usernameClaims),
 		Password:     "OIDC_LOGIN_ONLY", // #nosec G101 -- non-secret sentinel; OIDC users do not use password login.
 		Email:        stringPointerOrNil(claims.Email),
 		OIDCIssuer:   &issuer,
@@ -255,6 +261,12 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 }
 
 func attachOIDCIdentity(user models.User, issuer string, claims auth.OIDCClaims) (models.User, error) {
+	if user.OIDCIssuer != nil || user.OIDCSubject != nil {
+		if user.OIDCIssuer == nil || user.OIDCSubject == nil || *user.OIDCIssuer != issuer || *user.OIDCSubject != claims.Subject {
+			return models.User{}, errors.New("user is already linked to a different OIDC identity")
+		}
+	}
+
 	user.OIDCIssuer = &issuer
 	user.OIDCSubject = &claims.Subject
 	user.AuthProvider = "oidc"
@@ -279,7 +291,7 @@ func oidcUsername(claims auth.OIDCClaims) string {
 
 func randomState() (string, error) {
 	bytes := make([]byte, 32)
-	if _, err := randomReader.Read(bytes); err != nil {
+	if _, err := io.ReadFull(randomReader, bytes); err != nil {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(bytes), nil

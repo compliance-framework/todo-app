@@ -1405,8 +1405,9 @@ func Test_REQ01_P_008_UpsertOIDCUserCreateAndFind(t *testing.T) {
 	setupTestDB(t)
 
 	claims := auth.OIDCClaims{
-		Subject: "subject-1",
-		Email:   "oidc@example.com",
+		Subject:       "subject-1",
+		Email:         "oidc@example.com",
+		EmailVerified: true,
 	}
 
 	user, err := upsertOIDCUser("https://issuer.example.com", claims)
@@ -1432,14 +1433,73 @@ func Test_REQ01_P_009_UpsertOIDCUserAttachByEmail(t *testing.T) {
 	existing := createTestUser(t, "existing@example.com", "password123")
 
 	user, err := upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{
-		Subject: "subject-2",
-		Email:   "existing@example.com",
+		Subject:       "subject-2",
+		Email:         " existing@example.com ",
+		EmailVerified: true,
 	})
 	if err != nil {
 		t.Fatalf("upsertOIDCUser returned error: %v", err)
 	}
 	if user.ID != existing.ID || user.OIDCIssuer == nil || user.OIDCSubject == nil {
 		t.Fatalf("Expected existing user to receive OIDC identity, got %+v", user)
+	}
+	if user.Email == nil || *user.Email != "existing@example.com" {
+		t.Fatalf("Expected normalized email, got %+v", user.Email)
+	}
+}
+
+// Test_REQ01_P_011_UpsertOIDCUserDoesNotAttachUnverifiedEmail verifies unverified emails do not link accounts.
+func Test_REQ01_P_011_UpsertOIDCUserDoesNotAttachUnverifiedEmail(t *testing.T) {
+	setupTestDB(t)
+	existing := createTestUser(t, "existing@example.com", "password123")
+
+	user, err := upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{
+		Subject:       "subject-3",
+		Email:         " existing@example.com ",
+		EmailVerified: false,
+	})
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error: %v", err)
+	}
+	if user.ID == existing.ID {
+		t.Fatalf("Expected a new OIDC-only user, got existing user ID %d", user.ID)
+	}
+	if user.Username == "existing@example.com" {
+		t.Fatalf("Expected unverified email not to be used as username, got %q", user.Username)
+	}
+	if user.Email == nil || *user.Email != "existing@example.com" {
+		t.Fatalf("Expected normalized email on new OIDC user, got %+v", user.Email)
+	}
+
+	var reloadedExisting models.User
+	if err := db.GetDB().First(&reloadedExisting, existing.ID).Error; err != nil {
+		t.Fatalf("Failed to reload existing user: %v", err)
+	}
+	if reloadedExisting.OIDCIssuer != nil || reloadedExisting.OIDCSubject != nil {
+		t.Fatalf("Expected existing user to remain unlinked, got %+v", reloadedExisting)
+	}
+}
+
+// Test_REQ01_P_012_AttachOIDCIdentityRefusesRelink verifies linked accounts cannot be re-linked.
+func Test_REQ01_P_012_AttachOIDCIdentityRefusesRelink(t *testing.T) {
+	setupTestDB(t)
+	user := createTestUser(t, "linked@example.com", "password123")
+
+	linked, err := attachOIDCIdentity(user, "https://issuer.example.com", auth.OIDCClaims{Subject: "subject-1"})
+	if err != nil {
+		t.Fatalf("attachOIDCIdentity returned error: %v", err)
+	}
+
+	if _, err := attachOIDCIdentity(linked, "https://issuer.example.com", auth.OIDCClaims{Subject: "subject-2"}); err == nil {
+		t.Fatal("Expected relink to a different OIDC subject to fail")
+	}
+
+	var reloaded models.User
+	if err := db.GetDB().First(&reloaded, linked.ID).Error; err != nil {
+		t.Fatalf("Failed to reload linked user: %v", err)
+	}
+	if reloaded.OIDCSubject == nil || *reloaded.OIDCSubject != "subject-1" {
+		t.Fatalf("Expected original OIDC subject to remain unchanged, got %+v", reloaded)
 	}
 }
 
@@ -1462,6 +1522,14 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 	}
 	originalReader := randomReader
 	t.Cleanup(func() { randomReader = originalReader })
+	randomReader = &shortReader{data: bytes.Repeat([]byte{1}, 32)}
+	state, err = randomState()
+	if err != nil {
+		t.Fatalf("randomState returned error for short reads: %v", err)
+	}
+	if state == "" {
+		t.Error("Expected random state from short reads")
+	}
 	randomReader = errorReader{}
 	if _, err := randomState(); err == nil {
 		t.Error("Expected randomState error")
@@ -1527,6 +1595,26 @@ type errorReader struct{}
 
 func (errorReader) Read([]byte) (int, error) {
 	return 0, errors.New("random error")
+}
+
+type shortReader struct {
+	data []byte
+}
+
+func (r *shortReader) Read(p []byte) (int, error) {
+	if len(r.data) == 0 {
+		return 0, io.EOF
+	}
+	n := 3
+	if len(r.data) < n {
+		n = len(r.data)
+	}
+	if len(p) < n {
+		n = len(p)
+	}
+	copy(p, r.data[:n])
+	r.data = r.data[n:]
+	return n, nil
 }
 
 func setTestOIDCEnv(t *testing.T, issuer string) {
