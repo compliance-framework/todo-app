@@ -22,6 +22,8 @@ GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-ContainerSolutions/todo-app}"
 RELEASE_ARTIFACT_NAME="${RELEASE_ARTIFACT_NAME:-todo-app-linux-amd64}"
 RELEASE_SIGNATURE_BUNDLE_NAME="${RELEASE_SIGNATURE_BUNDLE_NAME:-todo-app-linux-amd64.bundle}"
 COSIGN_VERSION="${COSIGN_VERSION:-v2.4.3}"
+COSIGN_LINUX_AMD64_SHA256="${COSIGN_LINUX_AMD64_SHA256:-}"
+COSIGN_LINUX_ARM64_SHA256="${COSIGN_LINUX_ARM64_SHA256:-}"
 COSIGN_CERTIFICATE_IDENTITY_REGEXP="${COSIGN_CERTIFICATE_IDENTITY_REGEXP:-https://github.com/ContainerSolutions/todo-app/.github/workflows/.*}"
 COSIGN_CERTIFICATE_OIDC_ISSUER="${COSIGN_CERTIFICATE_OIDC_ISSUER:-https://token.actions.githubusercontent.com}"
 
@@ -46,18 +48,37 @@ install_cosign() {
   fi
 
   local arch
+  local checksum
   arch="$(uname -m)"
   case "$arch" in
-    x86_64) arch="amd64" ;;
-    aarch64 | arm64) arch="arm64" ;;
+    x86_64)
+      arch="amd64"
+      checksum="$COSIGN_LINUX_AMD64_SHA256"
+      ;;
+    aarch64 | arm64)
+      arch="arm64"
+      checksum="$COSIGN_LINUX_ARM64_SHA256"
+      ;;
     *) log "unsupported architecture for cosign: $arch"; exit 1 ;;
   esac
 
+  if [ -z "$checksum" ]; then
+    log "missing pinned checksum for cosign ${COSIGN_VERSION} linux ${arch}"
+    exit 1
+  fi
+
   local url
+  local work_dir
+  local cosign_file
   url="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-${arch}"
+  work_dir="$(mktemp -d)"
+  cosign_file="$work_dir/cosign"
+  trap 'rm -rf "$work_dir"' RETURN
+
   log "installing cosign ${COSIGN_VERSION}"
-  curl --fail --location --silent --show-error "$url" --output /usr/local/bin/cosign
-  chmod 0755 /usr/local/bin/cosign
+  curl --fail --location --silent --show-error "$url" --output "$cosign_file"
+  printf '%s  %s\n' "$checksum" "$cosign_file" | sha256sum --check --status
+  install -o root -g root -m 0755 "$cosign_file" /usr/local/bin/cosign
 }
 
 ensure_user() {
@@ -114,19 +135,6 @@ write_environment_file() {
   cat >"$ENV_FILE" <<EOF
 PORT=${APP_PORT}
 DB_PATH=/var/lib/todo-app/todo_app.db
-DB_HOST=${DB_HOST:-}
-DB_PORT=${DB_PORT:-5432}
-DB_NAME=${DB_NAME:-todo_app}
-DB_USER=${DB_USER:-todo_app}
-DB_SSLMODE=${DB_SSLMODE:-require}
-DB_IAM_AUTH=true
-AWS_REGION=${AWS_REGION}
-JWT_SECRET_SSM_PARAMETER=${JWT_SECRET_SSM_PARAMETER:-}
-OIDC_ISSUER_URL=${OIDC_ISSUER_URL:-}
-OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
-OIDC_CLIENT_SECRET_SSM_PARAMETER=${OIDC_CLIENT_SECRET_SSM_PARAMETER:-}
-OIDC_REDIRECT_URL=${OIDC_REDIRECT_URL:-}
-CORS_ALLOWED_ORIGIN=${CORS_ALLOWED_ORIGIN:-}
 EOF
   chown root:"$APP_GROUP" "$ENV_FILE"
   chmod 0640 "$ENV_FILE"

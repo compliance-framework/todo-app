@@ -27,9 +27,8 @@ variable "alb_certificate_arn" {
 }
 
 variable "allowed_https_cidr_blocks" {
-  description = "CIDR blocks allowed to reach the ALB on HTTPS."
+  description = "CIDR blocks explicitly allowed to reach the ALB on HTTPS. Use [\"0.0.0.0/0\"] only when intentionally opening HTTPS to the public internet."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
 }
 
 variable "vpc_cidr" {
@@ -45,7 +44,7 @@ variable "public_subnet_cidrs" {
 }
 
 variable "private_subnet_cidrs" {
-  description = "CIDR blocks for private EC2 and RDS subnets."
+  description = "CIDR blocks for private EC2 subnets."
   type        = list(string)
   default     = ["10.42.10.0/24", "10.42.11.0/24"]
 }
@@ -104,40 +103,25 @@ variable "cosign_version" {
   default     = "v2.4.3"
 }
 
-variable "db_name" {
-  description = "Application database name."
+variable "cosign_linux_amd64_sha256" {
+  description = "Pinned SHA-256 checksum for the cosign Linux amd64 binary matching cosign_version."
   type        = string
-  default     = "todo_app"
 }
 
-variable "db_user" {
-  description = "PostgreSQL application database user."
+variable "cosign_linux_arm64_sha256" {
+  description = "Pinned SHA-256 checksum for the cosign Linux arm64 binary matching cosign_version."
   type        = string
-  default     = "todo_app"
 }
 
-variable "db_instance_class" {
-  description = "RDS instance class."
+variable "nat_gateway_mode" {
+  description = "NAT Gateway placement mode. Use per_az for high availability or single for lower-cost demo environments."
   type        = string
-  default     = "db.t4g.small"
-}
+  default     = "per_az"
 
-variable "db_allocated_storage_gb" {
-  description = "Initial RDS storage in GiB."
-  type        = number
-  default     = 20
-}
-
-variable "db_backup_retention_days" {
-  description = "Automated backup retention period in days."
-  type        = number
-  default     = 7
-}
-
-variable "db_sslmode" {
-  description = "PostgreSQL sslmode exported to the application EnvironmentFile."
-  type        = string
-  default     = "require"
+  validation {
+    condition     = contains(["per_az", "single"], var.nat_gateway_mode)
+    error_message = "nat_gateway_mode must be either per_az or single."
+  }
 }
 
 variable "ec2_instance_type" {
@@ -146,44 +130,19 @@ variable "ec2_instance_type" {
   default     = "t3.micro"
 }
 
+variable "ec2_ami_architecture" {
+  description = "Amazon Linux 2023 AMI architecture. Use arm64 for ARM instance families such as t4g; use x86_64 for t3/t4i/m families."
+  type        = string
+  default     = "x86_64"
+
+  validation {
+    condition     = contains(["x86_64", "arm64"], var.ec2_ami_architecture)
+    error_message = "ec2_ami_architecture must be either x86_64 or arm64."
+  }
+}
+
 variable "ec2_key_name" {
   description = "Optional EC2 key pair name for break-glass SSH access. Leave null for no key."
   type        = string
   default     = null
-}
-
-variable "jwt_secret_ssm_parameter_name" {
-  description = "SSM Parameter name containing the JWT secret consumed by the backend."
-  type        = string
-  default     = "/todo-app/jwt-secret"
-}
-
-variable "oidc_issuer_url" {
-  description = "OIDC issuer URL exported to the application EnvironmentFile."
-  type        = string
-  default     = ""
-}
-
-variable "oidc_client_id" {
-  description = "OIDC client ID exported to the application EnvironmentFile."
-  type        = string
-  default     = ""
-}
-
-variable "oidc_client_secret_ssm_parameter_name" {
-  description = "SSM Parameter name containing the OIDC client secret."
-  type        = string
-  default     = "/todo-app/oidc-client-secret"
-}
-
-variable "oidc_redirect_url" {
-  description = "OIDC redirect URL exported to the application EnvironmentFile."
-  type        = string
-  default     = ""
-}
-
-variable "cors_allowed_origin" {
-  description = "CORS allowed origin exported to the application EnvironmentFile."
-  type        = string
-  default     = ""
 }

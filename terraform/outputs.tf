@@ -8,11 +8,6 @@ output "release_tag_parameter_name" {
   value       = aws_ssm_parameter.release_tag.name
 }
 
-output "rds_endpoint" {
-  description = "RDS PostgreSQL endpoint."
-  value       = aws_db_instance.app.endpoint
-}
-
 output "app_instance_role_name" {
   description = "IAM role attached to the app host instance profile."
   value       = aws_iam_role.app_instance.name

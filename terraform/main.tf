@@ -1,14 +1,9 @@
 locals {
   availability_zone_count = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs))
   name                    = "${var.name_prefix}-${var.environment}"
-  cors_allowed_origin     = var.cors_allowed_origin != "" ? var.cors_allowed_origin : "https://${var.domain_name}"
-  oidc_redirect_url       = var.oidc_redirect_url != "" ? var.oidc_redirect_url : "https://${var.domain_name}/oauth/callback"
+  alb_name                = substr(replace(local.name, "_", "-"), 0, 32)
 
-  bootstrap_parameter_arns = compact([
-    aws_ssm_parameter.release_tag.arn,
-    var.jwt_secret_ssm_parameter_name != "" ? "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${var.jwt_secret_ssm_parameter_name}" : "",
-    var.oidc_client_secret_ssm_parameter_name != "" ? "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${var.oidc_client_secret_ssm_parameter_name}" : "",
-  ])
+  bootstrap_parameter_arns = [aws_ssm_parameter.release_tag.arn]
 }
 
 data "aws_availability_zones" "available" {
@@ -17,15 +12,13 @@ data "aws_availability_zones" "available" {
 
 data "aws_caller_identity" "current" {}
 
-data "aws_elb_service_account" "current" {}
-
 data "aws_ami" "amazon_linux" {
   most_recent = true
   owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["al2023-ami-*-x86_64"]
+    values = ["al2023-ami-*-${var.ec2_ami_architecture}"]
   }
 
   filter {
@@ -98,34 +91,40 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_eip" "nat" {
+  count = var.nat_gateway_mode == "single" ? 1 : length(aws_subnet.public)
+
   domain = "vpc"
 
   depends_on = [aws_internet_gateway.app]
 
   tags = {
-    Name = "${local.name}-nat"
+    Name = "${local.name}-nat-${count.index + 1}"
   }
 }
 
 resource "aws_nat_gateway" "app" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public[0].id
+  count = var.nat_gateway_mode == "single" ? 1 : length(aws_subnet.public)
+
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[var.nat_gateway_mode == "single" ? 0 : count.index].id
 
   tags = {
-    Name = local.name
+    Name = "${local.name}-nat-${count.index + 1}"
   }
 }
 
 resource "aws_route_table" "private" {
+  count = length(aws_subnet.private)
+
   vpc_id = aws_vpc.app.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.app.id
+    nat_gateway_id = aws_nat_gateway.app[var.nat_gateway_mode == "single" ? 0 : count.index].id
   }
 
   tags = {
-    Name = "${local.name}-private"
+    Name = "${local.name}-private-${count.index + 1}"
   }
 }
 
@@ -133,7 +132,7 @@ resource "aws_route_table_association" "private" {
   count = length(aws_subnet.private)
 
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private[count.index].id
 }
 
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
@@ -199,12 +198,6 @@ resource "aws_security_group" "app" {
   vpc_id      = aws_vpc.app.id
 }
 
-resource "aws_security_group" "rds" {
-  name        = "${local.name}-rds"
-  description = "Allow PostgreSQL only from EC2 app hosts"
-  vpc_id      = aws_vpc.app.id
-}
-
 resource "aws_security_group_rule" "alb_ingress_https" {
   type              = "ingress"
   description       = "HTTPS"
@@ -237,22 +230,12 @@ resource "aws_security_group_rule" "app_ingress_alb" {
 
 resource "aws_security_group_rule" "app_egress_all" {
   type              = "egress"
-  description       = "Outbound for release downloads, SSM, CloudWatch, and RDS"
+  description       = "Outbound for release downloads and SSM"
   security_group_id = aws_security_group.app.id
   from_port         = 0
   to_port           = 0
   protocol          = "-1"
   cidr_blocks       = ["0.0.0.0/0"]
-}
-
-resource "aws_security_group_rule" "rds_ingress_app" {
-  type                     = "ingress"
-  description              = "PostgreSQL from app host"
-  security_group_id        = aws_security_group.rds.id
-  from_port                = 5432
-  to_port                  = 5432
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.app.id
 }
 
 resource "aws_s3_bucket" "alb_logs" {
@@ -300,26 +283,43 @@ resource "aws_s3_bucket_policy" "alb_logs" {
         Sid    = "AWSALBLogDeliveryAclCheck"
         Effect = "Allow"
         Principal = {
-          AWS = data.aws_elb_service_account.current.arn
+          Service = "logdelivery.elasticloadbalancing.amazonaws.com"
         }
         Action   = "s3:GetBucketAcl"
         Resource = aws_s3_bucket.alb_logs.arn
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+          ArnLike = {
+            "aws:SourceArn" = "arn:aws:elasticloadbalancing:${var.aws_region}:${data.aws_caller_identity.current.account_id}:loadbalancer/app/${local.alb_name}/*"
+          }
+        }
       },
       {
         Sid    = "AWSALBLogDeliveryWrite"
         Effect = "Allow"
         Principal = {
-          AWS = data.aws_elb_service_account.current.arn
+          Service = "logdelivery.elasticloadbalancing.amazonaws.com"
         }
         Action   = "s3:PutObject"
-        Resource = "${aws_s3_bucket.alb_logs.arn}/alb/*"
+        Resource = "${aws_s3_bucket.alb_logs.arn}/alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+            "s3:x-amz-acl"      = "bucket-owner-full-control"
+          }
+          ArnLike = {
+            "aws:SourceArn" = "arn:aws:elasticloadbalancing:${var.aws_region}:${data.aws_caller_identity.current.account_id}:loadbalancer/app/${local.alb_name}/*"
+          }
+        }
       }
     ]
   })
 }
 
 resource "aws_lb" "app" {
-  name               = substr(replace(local.name, "_", "-"), 0, 32)
+  name               = local.alb_name
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
@@ -366,86 +366,12 @@ resource "aws_lb_listener" "https" {
   }
 }
 
-resource "aws_kms_key" "rds" {
-  description             = "KMS key for ${local.name} RDS storage"
-  deletion_window_in_days = 30
-  enable_key_rotation     = true
-}
-
-resource "aws_kms_alias" "rds" {
-  name          = "alias/${local.name}-rds"
-  target_key_id = aws_kms_key.rds.key_id
-}
-
-resource "aws_db_subnet_group" "app" {
-  name       = local.name
-  subnet_ids = aws_subnet.private[*].id
-}
-
-resource "aws_iam_role" "rds_monitoring" {
-  name = "${local.name}-rds-monitoring"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "monitoring.rds.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "rds_monitoring" {
-  role       = aws_iam_role.rds_monitoring.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
-}
-
-resource "aws_db_instance" "app" {
-  identifier = local.name
-
-  allocated_storage     = var.db_allocated_storage_gb
-  max_allocated_storage = 100
-  storage_type          = "gp3"
-  storage_encrypted     = true
-  kms_key_id            = aws_kms_key.rds.arn
-
-  engine         = "postgres"
-  instance_class = var.db_instance_class
-  db_name        = var.db_name
-  username       = var.db_user
-
-  manage_master_user_password           = true
-  iam_database_authentication_enabled   = true
-  publicly_accessible                   = false
-  deletion_protection                   = true
-  backup_retention_period               = var.db_backup_retention_days
-  performance_insights_enabled          = true
-  performance_insights_retention_period = 7
-  monitoring_interval                   = 60
-  monitoring_role_arn                   = aws_iam_role.rds_monitoring.arn
-
-  db_subnet_group_name   = aws_db_subnet_group.app.name
-  vpc_security_group_ids = [aws_security_group.rds.id]
-
-  skip_final_snapshot       = false
-  final_snapshot_identifier = "${local.name}-final"
-}
-
 resource "aws_ssm_parameter" "release_tag" {
   name        = var.release_tag_parameter_name
   description = "Target todo-app release tag installed by bootstrap.sh"
   type        = "String"
   value       = var.release_tag
   overwrite   = true
-}
-
-resource "aws_cloudwatch_log_group" "app" {
-  name              = "/todo-app/${var.environment}"
-  retention_in_days = 30
 }
 
 resource "aws_iam_role" "app_instance" {
@@ -473,14 +399,6 @@ resource "aws_iam_role_policy" "app_instance" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "RDSIAMAuthForAppUser"
-        Effect = "Allow"
-        Action = "rds-db:connect"
-        Resource = [
-          "arn:aws:rds-db:${var.aws_region}:${data.aws_caller_identity.current.account_id}:dbuser:${aws_db_instance.app.resource_id}/${var.db_user}"
-        ]
-      },
-      {
         Sid    = "ReadBootstrapParameters"
         Effect = "Allow"
         Action = [
@@ -488,16 +406,6 @@ resource "aws_iam_role_policy" "app_instance" {
         ]
         Resource = local.bootstrap_parameter_arns
       },
-      {
-        Sid    = "WriteApplicationLogs"
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-          "logs:DescribeLogStreams"
-        ]
-        Resource = "${aws_cloudwatch_log_group.app.arn}:*"
-      }
     ]
   })
 }
@@ -564,30 +472,19 @@ resource "aws_launch_template" "app" {
   }
 
   user_data = base64encode(templatefile("${path.module}/templates/user_data.sh.tftpl", {
-    app_port                              = var.app_port
-    aws_region                            = var.aws_region
-    bootstrap_script                      = file("${path.module}/scripts/bootstrap.sh")
-    cloudwatch_log_group_name             = aws_cloudwatch_log_group.app.name
-    cors_allowed_origin                   = local.cors_allowed_origin
-    cosign_certificate_identity_regexp    = var.cosign_certificate_identity_regexp
-    cosign_certificate_oidc_issuer        = var.cosign_certificate_oidc_issuer
-    cosign_version                        = var.cosign_version
-    db_host                               = aws_db_instance.app.address
-    db_name                               = var.db_name
-    db_port                               = aws_db_instance.app.port
-    db_sslmode                            = var.db_sslmode
-    db_user                               = var.db_user
-    domain_name                           = var.domain_name
-    fallback_release_tag                  = var.release_tag
-    github_repository                     = var.github_repository
-    jwt_secret_ssm_parameter_name         = var.jwt_secret_ssm_parameter_name
-    oidc_client_id                        = var.oidc_client_id
-    oidc_client_secret_ssm_parameter_name = var.oidc_client_secret_ssm_parameter_name
-    oidc_issuer_url                       = var.oidc_issuer_url
-    oidc_redirect_url                     = local.oidc_redirect_url
-    release_artifact_name                 = var.release_artifact_name
-    release_signature_bundle_name         = var.release_signature_bundle_name
-    release_tag_parameter_name            = var.release_tag_parameter_name
+    app_port                           = var.app_port
+    aws_region                         = var.aws_region
+    bootstrap_script                   = file("${path.module}/scripts/bootstrap.sh")
+    cosign_certificate_identity_regexp = var.cosign_certificate_identity_regexp
+    cosign_certificate_oidc_issuer     = var.cosign_certificate_oidc_issuer
+    cosign_linux_amd64_sha256          = var.cosign_linux_amd64_sha256
+    cosign_linux_arm64_sha256          = var.cosign_linux_arm64_sha256
+    cosign_version                     = var.cosign_version
+    fallback_release_tag               = var.release_tag
+    github_repository                  = var.github_repository
+    release_artifact_name              = var.release_artifact_name
+    release_signature_bundle_name      = var.release_signature_bundle_name
+    release_tag_parameter_name         = var.release_tag_parameter_name
   }))
 
   tag_specifications {
