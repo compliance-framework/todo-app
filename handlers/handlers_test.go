@@ -1458,6 +1458,34 @@ func Test_REQ01_P_009_UpsertOIDCUserAttachByEmail(t *testing.T) {
 	if user.Email == nil || *user.Email != "existing@example.com" {
 		t.Fatalf("Expected normalized email, got %+v", user.Email)
 	}
+
+	emailOwner := createTestUser(t, "email-owner", "password123")
+	sharedEmail := "shared@example.com"
+	emailOwner.Email = &sharedEmail
+	if err := db.GetDB().Save(&emailOwner).Error; err != nil {
+		t.Fatalf("Failed to set email owner email: %v", err)
+	}
+	usernameOwner := createTestUser(t, sharedEmail, "password123")
+
+	user, err = upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{
+		Subject:       "subject-2b",
+		Email:         sharedEmail,
+		EmailVerified: true,
+	})
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error for shared email/username: %v", err)
+	}
+	if user.ID != emailOwner.ID {
+		t.Fatalf("Expected email match user ID %d, got %d", emailOwner.ID, user.ID)
+	}
+
+	var reloadedUsernameOwner models.User
+	if err := db.GetDB().First(&reloadedUsernameOwner, usernameOwner.ID).Error; err != nil {
+		t.Fatalf("Failed to reload username owner: %v", err)
+	}
+	if reloadedUsernameOwner.OIDCIssuer != nil || reloadedUsernameOwner.OIDCSubject != nil {
+		t.Fatalf("Expected username owner to remain unlinked, got %+v", reloadedUsernameOwner)
+	}
 }
 
 // Test_REQ01_P_013_UpsertOIDCUserDoesNotAttachUnverifiedEmail verifies unverified emails do not link accounts.

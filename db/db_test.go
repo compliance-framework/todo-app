@@ -229,7 +229,7 @@ func Test_DB_N_006_BuildRDSAuthTokenCredentialError(t *testing.T) {
 func Test_DB_N_005_IAMAuthConnectorConnectError(t *testing.T) {
 	cfg := Config{
 		Host:    "127.0.0.1",
-		Port:    "5432",
+		Port:    "1",
 		Name:    "todo",
 		User:    "app",
 		Region:  "us-east-1",

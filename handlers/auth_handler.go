@@ -239,8 +239,19 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		verifiedEmail = claims.Email
 	}
 	if verifiedEmail != "" {
-		err = db.GetDB().Where("email = ? OR username = ?", verifiedEmail, verifiedEmail).First(&user).Error
+		err = db.GetDB().Where("email = ?", verifiedEmail).First(&user).Error
 		if err == nil {
+			return attachOIDCIdentity(user, issuer, claims)
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.User{}, err
+		}
+
+		err = db.GetDB().Where("username = ?", verifiedEmail).First(&user).Error
+		if err == nil {
+			if user.OIDCIssuer != nil || user.OIDCSubject != nil || (user.AuthProvider != "" && user.AuthProvider != "password") {
+				return models.User{}, errors.New("username match is not an unlinked password user")
+			}
 			return attachOIDCIdentity(user, issuer, claims)
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
