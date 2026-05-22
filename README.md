@@ -15,8 +15,8 @@ A simple Todo List web application built with Go, demonstrating DO-178C complian
 
 - **Language**: Go 1.21+
 - **Web Framework**: Gin
-- **Database**: SQLite with GORM
-- **Authentication**: JWT (golang-jwt/jwt/v5)
+- **Database**: SQLite or PostgreSQL with GORM
+- **Authentication**: JWT (golang-jwt/jwt/v5), optional OIDC login
 - **Password Hashing**: bcrypt
 
 ## Project Structure
@@ -44,6 +44,9 @@ todo_app/
 ### Public Endpoints
 - `POST /api/register` - Register a new user
 - `POST /api/login` - Login and receive JWT token
+- `GET /api/auth/config` - Return public auth configuration
+- `GET /api/auth/oidc/login` - Start OIDC authorization-code login
+- `GET /api/auth/oidc/callback` - Complete OIDC login and receive JWT token
 - `GET /api/todos` - List all todos (REQ03)
 - `GET /api/todos/:id` - Get a specific todo (REQ03)
 
@@ -69,7 +72,24 @@ go build -o todo-app
 ## Environment Variables
 
 - `PORT` - Server port (default: 8080)
+- `APP_ENV` / `ENV` / `GIN_MODE` - Runtime mode; set production values to require `JWT_SECRET`
+- `JWT_SECRET` - JWT signing secret, required outside development mode
+- `CORS_ALLOWED_ORIGIN` - Allowed browser origin for CORS; empty defaults to same-origin only
+- `DB_DRIVER` - Database driver: `sqlite` or `postgres` (default: `sqlite`)
 - `DB_PATH` - SQLite database path (default: todo_app.db)
+- `DB_HOST` - PostgreSQL/RDS host
+- `DB_PORT` - PostgreSQL/RDS port (default: 5432)
+- `DB_NAME` - PostgreSQL database name
+- `DB_USER` - PostgreSQL database user
+- `DB_REGION` / `AWS_REGION` - AWS region for RDS IAM authentication
+- `DB_SSLMODE` - PostgreSQL TLS mode (default: verify-full; `disable` is rejected)
+- `DB_SSLROOTCERT` / `DB_RDS_CA_CERT_PATH` - RDS CA bundle path
+- `DB_IAM_AUTH` - Enable RDS IAM auth token generation (default: true)
+- `DB_PASSWORD` - PostgreSQL password only when `DB_IAM_AUTH=false`
+- `OIDC_ISSUER_URL` - OIDC issuer URL
+- `OIDC_CLIENT_ID` - OIDC client ID
+- `OIDC_CLIENT_SECRET` - OIDC client secret
+- `OIDC_REDIRECT_URL` - OIDC redirect URL
 
 ## Testing
 

@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"log"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/ContainerSolutions/todo-app/auth"
 	"github.com/ContainerSolutions/todo-app/db"
@@ -12,9 +16,11 @@ import (
 
 // SetupRouter creates and configures the Gin router with all routes
 func SetupRouter() *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
 
-	// CORS middleware
+	// Request audit logging and CORS middleware
+	r.Use(AuditLogMiddleware())
 	r.Use(CORSMiddleware())
 
 	// Health check
@@ -23,6 +29,9 @@ func SetupRouter() *gin.Engine {
 	// Public routes (no auth required)
 	r.POST("/api/register", handlers.Register)
 	r.POST("/api/login", handlers.Login)
+	r.GET("/api/auth/config", handlers.AuthConfig)
+	r.GET("/api/auth/oidc/login", handlers.OIDCLogin)
+	r.GET("/api/auth/oidc/callback", handlers.OIDCCallback)
 
 	// REQ03: Users should be able to see all todo lists (public read)
 	r.GET("/api/todos", handlers.ListTodos)
@@ -45,8 +54,13 @@ func SetupRouter() *gin.Engine {
 
 // CORSMiddleware returns a middleware that handles CORS
 func CORSMiddleware() gin.HandlerFunc {
+	allowedOrigin := GetAllowedOrigin()
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := c.GetHeader("Origin")
+		if allowedOrigin != "" && (allowedOrigin == origin || allowedOrigin == "*") {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+			c.Writer.Header().Set("Vary", "Origin")
+		}
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if c.Request.Method == "OPTIONS" {
@@ -54,6 +68,30 @@ func CORSMiddleware() gin.HandlerFunc {
 			return
 		}
 		c.Next()
+	}
+}
+
+// AuditLogMiddleware emits structured request logs to stdout.
+func AuditLogMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+
+		entry := map[string]interface{}{
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+			"method":    c.Request.Method,
+			"path":      c.Request.URL.Path,
+			"status":    c.Writer.Status(),
+		}
+		if userID, exists := c.Get("user_id"); exists {
+			entry["user_id"] = userID
+		}
+
+		data, err := json.Marshal(entry)
+		if err != nil {
+			log.Printf("failed to marshal audit log: %v", err)
+			return
+		}
+		log.Println(string(data))
 	}
 }
 
@@ -71,6 +109,11 @@ func GetDBPath() string {
 	return dbPath
 }
 
+// GetAllowedOrigin returns the configured CORS allowed origin.
+func GetAllowedOrigin() string {
+	return strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGIN"))
+}
+
 // GetPort returns the port from environment or default
 func GetPort() string {
 	port := os.Getenv("PORT")
@@ -81,10 +124,12 @@ func GetPort() string {
 }
 
 func main() {
-	dbPath := GetDBPath()
+	if err := auth.ConfigureJWTSecretFromEnv(); err != nil {
+		log.Fatalf("Invalid auth configuration: %v", err)
+	}
 
 	// Initialize database
-	if err := db.InitDB(dbPath); err != nil {
+	if err := db.InitDBWithConfig(context.Background(), db.ConfigFromEnv()); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 

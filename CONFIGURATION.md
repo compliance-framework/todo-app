@@ -9,7 +9,24 @@ This document identifies all software configuration items (SCIs) for the Leo App
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `PORT` | HTTP server port | `8080` | No |
-| `DB_PATH` | Path to SQLite database file | `leo_app.db` | No |
+| `APP_ENV` / `ENV` / `GIN_MODE` | Runtime mode used to enforce production secrets | development | No |
+| `JWT_SECRET` | JWT signing secret | none | Yes outside development |
+| `CORS_ALLOWED_ORIGIN` | Allowed cross-origin browser origin; empty means same-origin only | none | No |
+| `DB_DRIVER` | Database driver: `sqlite` or `postgres` | `sqlite` | No |
+| `DB_PATH` | Path to SQLite database file | `todo_app.db` | No |
+| `DB_HOST` | PostgreSQL/RDS hostname | none | Yes for PostgreSQL |
+| `DB_PORT` | PostgreSQL/RDS port | `5432` | No |
+| `DB_NAME` | PostgreSQL database name | none | Yes for PostgreSQL |
+| `DB_USER` | PostgreSQL database user | none | Yes for PostgreSQL |
+| `DB_REGION` / `AWS_REGION` | AWS region for RDS IAM authentication | none | Yes when `DB_IAM_AUTH=true` |
+| `DB_SSLMODE` | PostgreSQL TLS mode; `disable` is rejected | `verify-full` | No |
+| `DB_SSLROOTCERT` / `DB_RDS_CA_CERT_PATH` | AWS RDS CA bundle path | auto-detected common path | No |
+| `DB_IAM_AUTH` | Generate RDS IAM auth token from AWS default credentials | `true` | No |
+| `DB_PASSWORD` | PostgreSQL password for non-IAM local connections | none | Only when `DB_IAM_AUTH=false` |
+| `OIDC_ISSUER_URL` | OIDC issuer URL | none | Required for OIDC |
+| `OIDC_CLIENT_ID` | OIDC client ID | none | Required for OIDC |
+| `OIDC_CLIENT_SECRET` | OIDC client secret | none | Required for OIDC |
+| `OIDC_REDIRECT_URL` | OIDC redirect URL | none | Required for OIDC |
 
 ## 3. Source Code Configuration Items
 
@@ -34,6 +51,10 @@ This document identifies all software configuration items (SCIs) for the Leo App
 | deleted_at | DATETIME | INDEX (soft delete) |
 | username | VARCHAR(255) | UNIQUE, NOT NULL |
 | password | VARCHAR(255) | NOT NULL (bcrypt hash) |
+| email | VARCHAR(320) | UNIQUE, nullable |
+| oidc_issuer | VARCHAR(512) | Composite unique index with oidc_subject, nullable |
+| oidc_subject | VARCHAR(255) | Composite unique index with oidc_issuer, nullable |
+| auth_provider | VARCHAR(32) | NOT NULL, default password |
 
 ### 4.2 Todos Table
 | Column | Type | Constraints |
@@ -54,9 +75,16 @@ This document identifies all software configuration items (SCIs) for the Leo App
 |---------|-------|----------|
 | Signing Method | HS256 | `auth/auth.go` |
 | Token Expiry | 24 hours | `auth/auth.go` |
-| Secret Key | Configurable | `auth/auth.go` |
+| Secret Key | `JWT_SECRET`; development fallback only | `auth/auth.go` |
 
-**Note**: In production, the JWT secret should be provided via environment variable.
+**Note**: In production, `JWT_SECRET` must be provided via environment variable.
+
+### 5.3 OIDC Settings
+| Setting | Value |
+|---------|-------|
+| Flow | Authorization code |
+| Provider config | `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL` |
+| User mapping | Existing `User` model keyed by OIDC issuer/subject and email |
 
 ### 5.2 Password Hashing
 | Setting | Value |
@@ -69,7 +97,7 @@ This document identifies all software configuration items (SCIs) for the Leo App
 ### 6.1 CORS Settings
 | Setting | Value |
 |---------|-------|
-| Allow Origin | `*` |
+| Allow Origin | `CORS_ALLOWED_ORIGIN`; empty means same-origin only |
 | Allow Methods | GET, POST, PUT, DELETE, OPTIONS |
 | Allow Headers | Content-Type, Authorization |
 

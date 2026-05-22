@@ -46,17 +46,56 @@ func Test_Main_P_002_HealthCheck(t *testing.T) {
 	}
 }
 
-// Test_Main_P_003_CORSMiddleware verifies CORS headers are set
-func Test_Main_P_003_CORSMiddleware(t *testing.T) {
+// Test_Main_P_002B_AuthConfig verifies auth config endpoint exposes OIDC state.
+func Test_Main_P_002B_AuthConfig(t *testing.T) {
+	t.Setenv("OIDC_ISSUER_URL", "")
+	t.Setenv("OIDC_CLIENT_ID", "")
+	t.Setenv("OIDC_CLIENT_SECRET", "")
+	t.Setenv("OIDC_REDIRECT_URL", "")
+	setupTestDB(t)
+	router := SetupRouter()
+
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/api/auth/config", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+	}
+	if w.Body.String() != "{\"oidc_configured\":false}" {
+		t.Errorf("Expected OIDC disabled config, got %s", w.Body.String())
+	}
+}
+
+// Test_Main_P_003_CORSMiddlewareDefaultSameOrigin verifies CORS does not allow all origins by default.
+func Test_Main_P_003_CORSMiddlewareDefaultSameOrigin(t *testing.T) {
+	t.Setenv("CORS_ALLOWED_ORIGIN", "")
 	setupTestDB(t)
 	router := SetupRouter()
 
 	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/health", nil)
+	req.Header.Set("Origin", "https://example.com")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Error("Expected Access-Control-Allow-Origin header to be *")
+	if w.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Error("Expected Access-Control-Allow-Origin header to be empty by default")
+	}
+}
+
+// Test_Main_P_003B_CORSMiddlewareConfigured verifies configured CORS origin is allowed.
+func Test_Main_P_003B_CORSMiddlewareConfigured(t *testing.T) {
+	t.Setenv("CORS_ALLOWED_ORIGIN", "https://app.example.com")
+	setupTestDB(t)
+	router := SetupRouter()
+
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/health", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Header().Get("Access-Control-Allow-Origin") != "https://app.example.com" {
+		t.Error("Expected configured Access-Control-Allow-Origin header")
 	}
 }
 

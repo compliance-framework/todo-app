@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -10,7 +12,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("todo-app-secret-key-change-in-production")
+const devJWTSecret = "todo-app-dev-secret" // #nosec G101 -- local development fallback only; production requires JWT_SECRET.
+
+var jwtSecret = []byte(devJWTSecret)
 
 // Function variables for testing (allows mocking)
 var (
@@ -60,6 +64,20 @@ func generateTokenImpl(userID uint, username string) (string, error) {
 // GenerateToken generates a JWT token for a user (uses GenerateTokenFunc for testability)
 func GenerateToken(userID uint, username string) (string, error) {
 	return GenerateTokenFunc(userID, username)
+}
+
+// ConfigureJWTSecretFromEnv reads the JWT signing secret from JWT_SECRET.
+func ConfigureJWTSecretFromEnv() error {
+	secret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	if secret != "" {
+		jwtSecret = []byte(secret)
+		return nil
+	}
+	if isDevelopmentMode() {
+		jwtSecret = []byte(devJWTSecret)
+		return nil
+	}
+	return errors.New("JWT_SECRET is required outside development mode")
 }
 
 // ValidateToken validates a JWT token and returns the claims
@@ -119,4 +137,21 @@ func GetUserIDFromContext(c *gin.Context) (uint, bool) {
 		return 0, false
 	}
 	return uintUser, true
+}
+
+func isDevelopmentMode() bool {
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	if env == "" {
+		env = strings.ToLower(strings.TrimSpace(os.Getenv("ENV")))
+	}
+	if env == "" {
+		env = strings.ToLower(strings.TrimSpace(os.Getenv("GIN_MODE")))
+	}
+
+	switch env {
+	case "", "debug", "dev", "development", "local", "test":
+		return true
+	default:
+		return false
+	}
 }
