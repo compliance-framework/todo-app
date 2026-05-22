@@ -1,0 +1,6 @@
+lisa-addressed:
+---
+Comment (frontend/tailwind.config.ts:4):
+`darkMode` is set to `["class"]`, but Tailwind’s config expects either the string value "class"/"media" (or a 2-tuple like `["class", ".dark"]` for a custom selector). With `satisfies Config` and `tailwindcss` typings, this is likely to fail type-checking (and `tailwind.config.ts` is included in `tsconfig.json`). Consider changing this to `darkMode: "class"` (or provide the selector as the second tuple element).
+
+Implementation guidance: In frontend/tailwind.config.ts, change the Tailwind dark mode setting from darkMode: ["class"] to darkMode: "class". Keep the `satisfies Config` export pattern unchanged and do not add a custom selector tuple unless the app already uses a nonstandard dark-mode selector; the existing CSS/classes expect Tailwind's default `.dark` class behavior.
