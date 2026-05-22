@@ -128,6 +128,8 @@ This document provides traceability from software requirements to test cases, en
 | DB_P_007 | Test_DB_P_007_PostgresOpeners | Positive | db/db_test.go | Verify PostgreSQL openers initialize connections |
 | DB_P_008 | Test_DB_P_008_SmallHelpers | Positive | db/db_test.go | Verify database helper defaults |
 | DB_P_009 | Test_DB_P_009_OpenIAMPostgres | Positive | db/db_test.go | Verify IAM PostgreSQL sql.DB initialization |
+| DB_P_010 | Test_DB_P_010_PostgresPoolDefaults | Positive | db/db_test.go | Verify PostgreSQL pool defaults are bounded |
+| DB_P_011 | Test_DB_P_011_PostgresPoolConfigured | Positive | db/db_test.go | Verify configured PostgreSQL pool sizes are applied |
 | DB_N_001 | Test_DB_N_001_InitDBInvalidPath | Negative | db/db_test.go | Verify database initialization fails with invalid path |
 | DB_N_002 | Test_DB_N_002_InitDBAutoMigrateError | Negative | db/db_test.go | Verify InitDB handles AutoMigrate error |
 | DB_N_003 | Test_DB_N_003_OpenDBUnsupportedDriver | Negative | db/db_test.go | Verify unsupported drivers fail fast |
@@ -159,8 +161,8 @@ This document provides traceability from software requirements to test cases, en
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
-| Infrastructure | 31 | 22 | 9 | 0 |
-| **Total** | **111** | **49** | **46** | **16** |
+| Infrastructure | 33 | 24 | 9 | 0 |
+| **Total** | **113** | **51** | **46** | **16** |
 
 ## 5. Code Coverage
 
