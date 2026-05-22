@@ -70,8 +70,9 @@ func Register(c *gin.Context) {
 
 	// Create user
 	user := models.User{
-		Username: req.Username,
-		Password: hashedPassword,
+		Username:     req.Username,
+		Password:     hashedPassword,
+		AuthProvider: "password",
 	}
 
 	if err := db.GetDB().Create(&user).Error; err != nil {

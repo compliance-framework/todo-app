@@ -12,6 +12,12 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+func resetOIDCProviderCacheForTest() {
+	oidcProviderCache.Lock()
+	defer oidcProviderCache.Unlock()
+	oidcProviderCache.entries = make(map[oidcProviderCacheKey]oidcProviderCacheEntry)
+}
+
 // Test_REQ01_P_001_HashAndCheckPassword verifies password hashing works correctly
 func Test_REQ01_P_001_HashAndCheckPassword(t *testing.T) {
 	password := "testpassword123"
@@ -332,6 +338,9 @@ func Test_Auth_N_002_OIDCConfigOAuth2ConfigUnconfigured(t *testing.T) {
 }
 
 func Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess(t *testing.T) {
+	resetOIDCProviderCacheForTest()
+	t.Cleanup(resetOIDCProviderCacheForTest)
+
 	issuer := "https://issuer.example.com"
 	oldTransport := http.DefaultTransport
 	http.DefaultTransport = authRoundTripFunc(func(req *http.Request) (*http.Response, error) {

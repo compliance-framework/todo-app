@@ -73,8 +73,9 @@ func createTestUser(t *testing.T, username, password string) models.User {
 	t.Helper()
 	hashedPassword, _ := auth.HashPassword(password)
 	user := models.User{
-		Username: username,
-		Password: hashedPassword,
+		Username:     username,
+		Password:     hashedPassword,
+		AuthProvider: "password",
 	}
 	db.GetDB().Create(&user)
 	return user
@@ -145,6 +146,14 @@ func Test_REQ01_P_006_RegisterSuccess(t *testing.T) {
 
 	if w.Code != http.StatusCreated {
 		t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
+	}
+
+	var response struct {
+		User models.User `json:"user"`
+	}
+	mustUnmarshalResponse(t, w.Body.Bytes(), &response)
+	if response.User.AuthProvider != "password" {
+		t.Errorf("Expected auth_provider password, got %q", response.User.AuthProvider)
 	}
 }
 
@@ -1288,11 +1297,12 @@ func Test_REQ01_N_019_OIDCCallbackInvalidIDToken(t *testing.T) {
 func Test_REQ01_P_012_OIDCCallbackSuccess(t *testing.T) {
 	setupTestDB(t)
 	key := mustGenerateRSAKey(t)
-	issuer := installTestOIDCProvider(t, testOIDCProvider{
+	var issuer string
+	issuer = installTestOIDCProvider(t, testOIDCProvider{
 		key: key,
 		tokenBody: func() string {
 			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
-				mustSignIDToken(t, key, "https://issuer.example.com", "client-id", "subject-success", "success@example.com") + `"}`
+				mustSignIDToken(t, key, issuer, "client-id", "subject-success", "success@example.com") + `"}`
 		},
 	})
 	setTestOIDCEnv(t, issuer)
@@ -1339,12 +1349,13 @@ func Test_REQ01_N_020_OIDCCallbackProviderConfigError(t *testing.T) {
 func Test_REQ01_N_021_OIDCCallbackInvalidClaims(t *testing.T) {
 	setupTestDB(t)
 	key := mustGenerateRSAKey(t)
-	issuer := installTestOIDCProvider(t, testOIDCProvider{
+	var issuer string
+	issuer = installTestOIDCProvider(t, testOIDCProvider{
 		key: key,
 		tokenBody: func() string {
 			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
 				mustSignIDTokenClaims(t, key, jwt.MapClaims{
-					"iss":   "https://issuer.example.com",
+					"iss":   issuer,
 					"aud":   "client-id",
 					"sub":   "subject-invalid-claims",
 					"email": 123,
@@ -1378,11 +1389,12 @@ func Test_REQ01_E_006_OIDCCallbackGenerateTokenError(t *testing.T) {
 	defer func() { auth.GenerateTokenFunc = originalGenerateToken }()
 
 	key := mustGenerateRSAKey(t)
-	issuer := installTestOIDCProvider(t, testOIDCProvider{
+	var issuer string
+	issuer = installTestOIDCProvider(t, testOIDCProvider{
 		key: key,
 		tokenBody: func() string {
 			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
-				mustSignIDToken(t, key, "https://issuer.example.com", "client-id", "subject-token-error", "token-error@example.com") + `"}`
+				mustSignIDToken(t, key, issuer, "client-id", "subject-token-error", "token-error@example.com") + `"}`
 		},
 	})
 	setTestOIDCEnv(t, issuer)
@@ -1448,8 +1460,8 @@ func Test_REQ01_P_009_UpsertOIDCUserAttachByEmail(t *testing.T) {
 	}
 }
 
-// Test_REQ01_P_011_UpsertOIDCUserDoesNotAttachUnverifiedEmail verifies unverified emails do not link accounts.
-func Test_REQ01_P_011_UpsertOIDCUserDoesNotAttachUnverifiedEmail(t *testing.T) {
+// Test_REQ01_P_013_UpsertOIDCUserDoesNotAttachUnverifiedEmail verifies unverified emails do not link accounts.
+func Test_REQ01_P_013_UpsertOIDCUserDoesNotAttachUnverifiedEmail(t *testing.T) {
 	setupTestDB(t)
 	existing := createTestUser(t, "existing@example.com", "password123")
 
@@ -1480,8 +1492,8 @@ func Test_REQ01_P_011_UpsertOIDCUserDoesNotAttachUnverifiedEmail(t *testing.T) {
 	}
 }
 
-// Test_REQ01_P_012_AttachOIDCIdentityRefusesRelink verifies linked accounts cannot be re-linked.
-func Test_REQ01_P_012_AttachOIDCIdentityRefusesRelink(t *testing.T) {
+// Test_REQ01_P_014_AttachOIDCIdentityRefusesRelink verifies linked accounts cannot be re-linked.
+func Test_REQ01_P_014_AttachOIDCIdentityRefusesRelink(t *testing.T) {
 	setupTestDB(t)
 	user := createTestUser(t, "linked@example.com", "password123")
 
@@ -1633,13 +1645,13 @@ type testOIDCProvider struct {
 
 func installTestOIDCProvider(t *testing.T, provider testOIDCProvider) string {
 	t.Helper()
-	issuer := "https://issuer.example.com"
+	issuer := "https://issuer.example.com/" + strings.NewReplacer("/", "-", " ", "-").Replace(t.Name())
 	oldTransport := http.DefaultTransport
 	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		status := http.StatusOK
 		body := ""
-		switch req.URL.Path {
-		case "/.well-known/openid-configuration":
+		switch {
+		case strings.HasSuffix(req.URL.Path, "/.well-known/openid-configuration"):
 			body = `{
 				"issuer":"` + issuer + `",
 				"authorization_endpoint":"` + issuer + `/auth",
@@ -1647,7 +1659,7 @@ func installTestOIDCProvider(t *testing.T, provider testOIDCProvider) string {
 				"jwks_uri":"` + issuer + `/keys",
 				"id_token_signing_alg_values_supported":["RS256"]
 			}`
-		case "/token":
+		case strings.HasSuffix(req.URL.Path, "/token"):
 			status = provider.tokenStatus
 			if status == 0 {
 				status = http.StatusOK
@@ -1657,7 +1669,7 @@ func installTestOIDCProvider(t *testing.T, provider testOIDCProvider) string {
 			} else {
 				body = provider.tokenBody()
 			}
-		case "/keys":
+		case strings.HasSuffix(req.URL.Path, "/keys"):
 			body = `{"keys":[` + jwkForKey(provider.key) + `]}`
 		default:
 			status = http.StatusNotFound
