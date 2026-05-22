@@ -65,6 +65,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_020 | Test_REQ01_N_020_OIDCCallbackProviderConfigError | Negative | handlers/handlers_test.go | Verify OIDC callback handles provider config errors |
 | REQ01_N_021 | Test_REQ01_N_021_OIDCCallbackInvalidClaims | Negative | handlers/handlers_test.go | Verify OIDC callback handles invalid claims |
 | REQ01_N_022 | Test_REQ01_N_022_OIDCCallbackAccountLinkingConflict | Negative | handlers/handlers_test.go | Verify OIDC callback maps account-linking conflicts to 409 |
+| REQ01_N_023 | Test_REQ01_N_023_OIDCCallbackInvalidNonce | Negative | handlers/handlers_test.go | Verify OIDC callback rejects ID tokens with an invalid nonce |
 | Auth_N_001 | Test_Auth_N_001_ConfigureJWTSecretProductionMissing | Negative | auth/auth_test.go | Verify JWT secret is required outside development |
 | Auth_N_002 | Test_Auth_N_002_OIDCConfigOAuth2ConfigUnconfigured | Negative | auth/auth_test.go | Verify unconfigured OIDC config returns error |
 | REQ01_E_001 | Test_REQ01_E_001_TokenExpiry | Edge | auth/auth_test.go | Verify expired tokens are rejected |
@@ -166,12 +167,12 @@ This document provides traceability from software requirements to test cases, en
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 56 | 24 | 24 | 8 |
+| REQ01 | 57 | 24 | 25 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
 | Infrastructure | 36 | 26 | 10 | 0 |
-| **Total** | **122** | **58** | **48** | **16** |
+| **Total** | **123** | **58** | **49** | **16** |
 
 ## 5. Code Coverage
 
