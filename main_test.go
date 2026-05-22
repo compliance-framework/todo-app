@@ -136,6 +136,28 @@ func Test_Main_P_003B_CORSMiddlewareConfigured(t *testing.T) {
 	if w.Header().Get("Access-Control-Allow-Origin") != "https://app.example.com" {
 		t.Error("Expected configured Access-Control-Allow-Origin header")
 	}
+	if w.Header().Get("Vary") != "Origin" {
+		t.Error("Expected Vary: Origin header for configured Access-Control-Allow-Origin")
+	}
+}
+
+// Test_Main_P_003C_CORSMiddlewareWildcardDoesNotVary verifies wildcard CORS avoids unnecessary vary.
+func Test_Main_P_003C_CORSMiddlewareWildcardDoesNotVary(t *testing.T) {
+	t.Setenv("CORS_ALLOWED_ORIGIN", "*")
+	setupTestDB(t)
+	router := SetupRouter()
+
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/health", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Error("Expected wildcard Access-Control-Allow-Origin header")
+	}
+	if w.Header().Get("Vary") != "" {
+		t.Errorf("Expected no Vary header for wildcard CORS, got %q", w.Header().Get("Vary"))
+	}
 }
 
 // Test_Main_P_004_CORSMiddlewareOptions verifies OPTIONS request handling

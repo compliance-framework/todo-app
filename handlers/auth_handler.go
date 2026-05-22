@@ -303,19 +303,40 @@ func attachOIDCIdentity(user models.User, issuer string, claims auth.OIDCClaims)
 		if user.OIDCIssuer == nil || user.OIDCSubject == nil || *user.OIDCIssuer != issuer || *user.OIDCSubject != claims.Subject {
 			return models.User{}, errOIDCUserAlreadyLinked
 		}
+		return user, nil
 	}
 
-	user.OIDCIssuer = &issuer
-	user.OIDCSubject = &claims.Subject
-	user.AuthProvider = "oidc"
+	updates := map[string]interface{}{
+		"oidc_issuer":  issuer,
+		"oidc_subject": claims.Subject,
+	}
+	if user.AuthProvider == "" {
+		updates["auth_provider"] = "password"
+	}
 	claims.Email = strings.TrimSpace(claims.Email)
 	if claims.EmailVerified && claims.Email != "" {
-		user.Email = &claims.Email
+		updates["email"] = claims.Email
 	}
-	if err := db.GetDB().Save(&user).Error; err != nil {
+
+	result := db.GetDB().
+		Model(&models.User{}).
+		Where("id = ? AND oidc_issuer IS NULL AND oidc_subject IS NULL", user.ID).
+		Updates(updates)
+	if result.Error != nil {
+		return models.User{}, result.Error
+	}
+
+	var reloaded models.User
+	if err := db.GetDB().First(&reloaded, user.ID).Error; err != nil {
 		return models.User{}, err
 	}
-	return user, nil
+	if result.RowsAffected == 1 {
+		return reloaded, nil
+	}
+	if reloaded.OIDCIssuer != nil && reloaded.OIDCSubject != nil && *reloaded.OIDCIssuer == issuer && *reloaded.OIDCSubject == claims.Subject {
+		return reloaded, nil
+	}
+	return models.User{}, errOIDCUserAlreadyLinked
 }
 
 func oidcUsername(issuer string, claims auth.OIDCClaims) string {

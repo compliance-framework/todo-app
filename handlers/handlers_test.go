@@ -1534,6 +1534,9 @@ func Test_REQ01_P_009_UpsertOIDCUserAttachByEmail(t *testing.T) {
 	if user.ID != existing.ID || user.OIDCIssuer == nil || user.OIDCSubject == nil {
 		t.Fatalf("Expected existing user to receive OIDC identity, got %+v", user)
 	}
+	if user.AuthProvider != "password" {
+		t.Fatalf("Expected linked password user to keep auth_provider password, got %q", user.AuthProvider)
+	}
 	if user.Email == nil || *user.Email != "existing@example.com" {
 		t.Fatalf("Expected normalized email, got %+v", user.Email)
 	}
@@ -1619,6 +1622,32 @@ func Test_REQ01_P_014_AttachOIDCIdentityRefusesRelink(t *testing.T) {
 	}
 	if reloaded.OIDCSubject == nil || *reloaded.OIDCSubject != "subject-1" {
 		t.Fatalf("Expected original OIDC subject to remain unchanged, got %+v", reloaded)
+	}
+}
+
+// Test_REQ01_P_014B_AttachOIDCIdentityRejectsStaleConcurrentRelink verifies stale unlinked rows cannot overwrite links.
+func Test_REQ01_P_014B_AttachOIDCIdentityRejectsStaleConcurrentRelink(t *testing.T) {
+	setupTestDB(t)
+	user := createTestUser(t, "stale-linked@example.com", "password123")
+	staleUser := user
+
+	linked, err := attachOIDCIdentity(user, "https://issuer-one.example.com", auth.OIDCClaims{Subject: "subject-1"})
+	if err != nil {
+		t.Fatalf("attachOIDCIdentity returned error: %v", err)
+	}
+
+	_, err = attachOIDCIdentity(staleUser, "https://issuer-two.example.com", auth.OIDCClaims{Subject: "subject-2"})
+	if !errors.Is(err, errOIDCUserAlreadyLinked) {
+		t.Fatalf("Expected stale relink to fail with errOIDCUserAlreadyLinked, got %v", err)
+	}
+
+	var reloaded models.User
+	if err := db.GetDB().First(&reloaded, linked.ID).Error; err != nil {
+		t.Fatalf("Failed to reload linked user: %v", err)
+	}
+	if reloaded.OIDCIssuer == nil || *reloaded.OIDCIssuer != "https://issuer-one.example.com" ||
+		reloaded.OIDCSubject == nil || *reloaded.OIDCSubject != "subject-1" {
+		t.Fatalf("Expected stale relink not to overwrite original OIDC identity, got %+v", reloaded)
 	}
 }
 
