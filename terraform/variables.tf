@@ -16,11 +16,6 @@ variable "name_prefix" {
   default     = "todo-app"
 }
 
-variable "domain_name" {
-  description = "Public hostname that will be routed to the ALB."
-  type        = string
-}
-
 variable "alb_certificate_arn" {
   description = "ACM certificate ARN for the HTTPS listener. The certificate must be in aws_region."
   type        = string
@@ -29,6 +24,11 @@ variable "alb_certificate_arn" {
 variable "allowed_https_cidr_blocks" {
   description = "CIDR blocks explicitly allowed to reach the ALB on HTTPS. Use [\"0.0.0.0/0\"] only when intentionally opening HTTPS to the public internet."
   type        = list(string)
+
+  validation {
+    condition     = length(var.allowed_https_cidr_blocks) > 0 && alltrue([for cidr in var.allowed_https_cidr_blocks : can(cidrhost(cidr, 0))])
+    error_message = "allowed_https_cidr_blocks must contain at least one valid CIDR block."
+  }
 }
 
 variable "vpc_cidr" {
@@ -143,6 +143,12 @@ variable "ec2_ami_architecture" {
 
 variable "ec2_key_name" {
   description = "Optional EC2 key pair name for break-glass SSH access. Leave null for no key."
+  type        = string
+  default     = null
+}
+
+variable "ticket_tag" {
+  description = "Optional Ticket tag value applied to all resources. Leave null to omit the Ticket tag."
   type        = string
   default     = null
 }

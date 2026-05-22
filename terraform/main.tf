@@ -1,5 +1,5 @@
 locals {
-  availability_zone_count = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs))
+  availability_zone_count = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs), length(data.aws_availability_zones.available.names))
   name                    = "${var.name_prefix}-${var.environment}"
   alb_name                = substr(replace(local.name, "_", "-"), 0, 32)
 

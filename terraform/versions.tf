@@ -13,11 +13,13 @@ provider "aws" {
   region = var.aws_region
 
   default_tags {
-    tags = {
-      Application = "todo-app"
-      Environment = var.environment
-      ManagedBy   = "terraform"
-      Ticket      = "BCH-1283"
-    }
+    tags = merge(
+      {
+        Application = "todo-app"
+        Environment = var.environment
+        ManagedBy   = "terraform"
+      },
+      var.ticket_tag == null ? {} : { Ticket = var.ticket_tag }
+    )
   }
 }

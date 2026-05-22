@@ -1,6 +1,6 @@
 # todo-app Terraform
 
-This directory provisions the AWS environment for the SOC2/CCF todo-app demo in `eu-west-2`.
+This directory provisions the AWS environment for the SOC2/CCF todo-app demo. It defaults to `eu-west-2`; set `aws_region` to deploy in another region.
 
 It creates a VPC with public ALB subnets and private EC2 subnets, VPC flow logs, a TLS ALB with access logs, and a size-1 Auto Scaling Group for the app host.
 
@@ -13,12 +13,16 @@ By default the stack creates one NAT Gateway per AZ. Set `nat_gateway_mode = "si
 ```bash
 terraform init
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with the real domain, ACM certificate ARN, allowed HTTPS CIDRs,
+# Edit terraform.tfvars with the ACM certificate ARN, allowed HTTPS CIDRs,
 # release tag, and pinned cosign checksums for the selected cosign_version.
 terraform apply
 ```
 
 Do not commit `terraform.tfvars`, state files, or secrets.
+
+## Destroy
+
+ALB access logs are retained in S3 for 90 days. Empty the ALB log bucket before running `terraform destroy`, otherwise Terraform cannot delete the non-empty bucket.
 
 ## Validate Locally
 

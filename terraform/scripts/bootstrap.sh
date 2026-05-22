@@ -43,10 +43,6 @@ install_packages() {
 }
 
 install_cosign() {
-  if command -v cosign >/dev/null 2>&1; then
-    return
-  fi
-
   local arch
   local checksum
   arch="$(uname -m)"
@@ -73,7 +69,7 @@ install_cosign() {
   url="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-${arch}"
   work_dir="$(mktemp -d)"
   cosign_file="$work_dir/cosign"
-  trap 'rm -rf "$work_dir"' RETURN
+  trap 'rm -rf "$work_dir"; trap - RETURN' RETURN
 
   log "installing cosign ${COSIGN_VERSION}"
   curl --fail --location --silent --show-error "$url" --output "$cosign_file"
@@ -175,7 +171,7 @@ install_release() {
   local release_dir
   work_dir="$(mktemp -d)"
   release_dir="$APP_HOME/releases/$tag"
-  trap 'rm -rf "$work_dir"' RETURN
+  trap 'rm -rf "$work_dir"; trap - RETURN' RETURN
 
   download_and_verify "$tag" "$work_dir"
 
