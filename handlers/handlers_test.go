@@ -1488,6 +1488,47 @@ func Test_REQ01_P_008_UpsertOIDCUserCreateAndFind(t *testing.T) {
 	}
 }
 
+// Test_REQ01_P_008A_UpsertOIDCUserBackfillsVerifiedEmail verifies later verified email claims are persisted.
+func Test_REQ01_P_008A_UpsertOIDCUserBackfillsVerifiedEmail(t *testing.T) {
+	setupTestDB(t)
+
+	issuer := "https://issuer.example.com"
+	claims := auth.OIDCClaims{
+		Subject:       "subject-backfill",
+		Email:         "missing@example.com",
+		EmailVerified: false,
+	}
+
+	user, err := upsertOIDCUser(issuer, claims)
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error: %v", err)
+	}
+	if user.Email != nil {
+		t.Fatalf("Expected initial OIDC user to have no email, got %+v", user.Email)
+	}
+
+	claims.Email = " verified@example.com "
+	claims.EmailVerified = true
+	updatedUser, err := upsertOIDCUser(issuer, claims)
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error on existing user: %v", err)
+	}
+	if updatedUser.ID != user.ID {
+		t.Fatalf("Expected existing user ID %d, got %d", user.ID, updatedUser.ID)
+	}
+	if updatedUser.Email == nil || *updatedUser.Email != "verified@example.com" {
+		t.Fatalf("Expected verified email to be backfilled, got %+v", updatedUser.Email)
+	}
+
+	var reloaded models.User
+	if err := db.GetDB().First(&reloaded, user.ID).Error; err != nil {
+		t.Fatalf("Failed to reload user: %v", err)
+	}
+	if reloaded.Email == nil || *reloaded.Email != "verified@example.com" {
+		t.Fatalf("Expected persisted verified email, got %+v", reloaded.Email)
+	}
+}
+
 // Test_REQ01_P_008B_UpsertOIDCUserRetriesAfterCreateRace verifies concurrent creates are idempotent.
 func Test_REQ01_P_008B_UpsertOIDCUserRetriesAfterCreateRace(t *testing.T) {
 	setupTestDB(t)

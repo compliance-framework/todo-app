@@ -233,6 +233,15 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 	var user models.User
 	err := findOIDCUser(issuer, claims.Subject, &user)
 	if err == nil {
+		claims.Email = strings.TrimSpace(claims.Email)
+		if claims.EmailVerified && claims.Email != "" && user.Email == nil {
+			if err := db.GetDB().Model(&models.User{}).Where("id = ?", user.ID).Update("email", claims.Email).Error; err != nil {
+				return models.User{}, err
+			}
+			if err := db.GetDB().First(&user, user.ID).Error; err != nil {
+				return models.User{}, err
+			}
+		}
 		return user, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
