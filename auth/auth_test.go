@@ -2,10 +2,13 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,6 +22,7 @@ func resetOIDCProviderCacheForTest() {
 	oidcProviderCache.Lock()
 	defer oidcProviderCache.Unlock()
 	oidcProviderCache.entries = make(map[oidcProviderCacheKey]oidcProviderCacheEntry)
+	oidcProviderCache.calls = make(map[oidcProviderCacheKey]*oidcProviderCacheCall)
 }
 
 // Test_REQ01_P_001_HashAndCheckPassword verifies password hashing works correctly
@@ -374,6 +378,69 @@ func Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess(t *testing.T) {
 	}
 	if verifier == nil {
 		t.Error("Expected ID token verifier")
+	}
+}
+
+func Test_Auth_P_006_OIDCConfigOAuth2ConfigConcurrentDiscoverySingleflight(t *testing.T) {
+	resetOIDCProviderCacheForTest()
+	t.Cleanup(resetOIDCProviderCacheForTest)
+
+	issuer := "https://issuer.example.com"
+	var discoveryRequests atomic.Int32
+	client := &http.Client{Transport: authRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path != "/.well-known/openid-configuration" {
+			return authJSONResponse(http.StatusNotFound, "{}"), nil
+		}
+		discoveryRequests.Add(1)
+		time.Sleep(50 * time.Millisecond)
+		return authJSONResponse(http.StatusOK, `{
+			"issuer":"`+issuer+`",
+			"authorization_endpoint":"`+issuer+`/auth",
+			"token_endpoint":"`+issuer+`/token",
+			"jwks_uri":"`+issuer+`/keys",
+			"id_token_signing_alg_values_supported":["RS256"]
+		}`), nil
+	})}
+	ctx := oidc.ClientContext(t.Context(), client)
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
+
+	cfg := OIDCConfig{
+		IssuerURL:    issuer,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		RedirectURL:  "https://app.example.com/callback",
+	}
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	errs := make(chan error, 10)
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			oauthConfig, verifier, err := cfg.OAuth2Config(ctx)
+			if err != nil {
+				errs <- err
+				return
+			}
+			if oauthConfig.Endpoint.AuthURL != issuer+"/auth" || verifier == nil {
+				errs <- errors.New("unexpected OAuth2Config result")
+			}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("OAuth2Config returned error: %v", err)
+		}
+	}
+	if got := discoveryRequests.Load(); got != 1 {
+		t.Fatalf("Expected one provider discovery request, got %d", got)
 	}
 }
 

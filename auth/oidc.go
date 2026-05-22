@@ -37,11 +37,19 @@ type oidcProviderCacheEntry struct {
 	verifier *oidc.IDTokenVerifier
 }
 
+type oidcProviderCacheCall struct {
+	done  chan struct{}
+	entry oidcProviderCacheEntry
+	err   error
+}
+
 var oidcProviderCache = struct {
 	sync.Mutex
 	entries map[oidcProviderCacheKey]oidcProviderCacheEntry
+	calls   map[oidcProviderCacheKey]*oidcProviderCacheCall
 }{
 	entries: make(map[oidcProviderCacheKey]oidcProviderCacheEntry),
+	calls:   make(map[oidcProviderCacheKey]*oidcProviderCacheCall),
 }
 
 // OIDCConfigFromEnv reads OIDC settings from environment variables.
@@ -73,18 +81,47 @@ func (cfg OIDCConfig) OAuth2Config(ctx context.Context) (*oauth2.Config, *oidc.I
 	cacheKey := oidcProviderCacheKey{issuerURL: cfg.IssuerURL, clientID: cfg.ClientID}
 	oidcProviderCache.Lock()
 	entry, ok := oidcProviderCache.entries[cacheKey]
-	oidcProviderCache.Unlock()
 	if !ok {
-		provider, err := oidc.NewProvider(ctx, cfg.IssuerURL)
-		if err != nil {
-			return nil, nil, err
+		if call, exists := oidcProviderCache.calls[cacheKey]; exists {
+			oidcProviderCache.Unlock()
+			select {
+			case <-call.done:
+				if call.err != nil {
+					return nil, nil, call.err
+				}
+				entry = call.entry
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			}
+		} else {
+			call := &oidcProviderCacheCall{done: make(chan struct{})}
+			oidcProviderCache.calls[cacheKey] = call
+			oidcProviderCache.Unlock()
+
+			provider, err := oidc.NewProvider(ctx, cfg.IssuerURL)
+			if err != nil {
+				call.err = err
+			} else {
+				call.entry = oidcProviderCacheEntry{
+					endpoint: provider.Endpoint(),
+					verifier: provider.Verifier(&oidc.Config{ClientID: cfg.ClientID}),
+				}
+			}
+
+			oidcProviderCache.Lock()
+			if call.err == nil {
+				oidcProviderCache.entries[cacheKey] = call.entry
+			}
+			delete(oidcProviderCache.calls, cacheKey)
+			close(call.done)
+			oidcProviderCache.Unlock()
+
+			if call.err != nil {
+				return nil, nil, call.err
+			}
+			entry = call.entry
 		}
-		entry = oidcProviderCacheEntry{
-			endpoint: provider.Endpoint(),
-			verifier: provider.Verifier(&oidc.Config{ClientID: cfg.ClientID}),
-		}
-		oidcProviderCache.Lock()
-		oidcProviderCache.entries[cacheKey] = entry
+	} else {
 		oidcProviderCache.Unlock()
 	}
 
