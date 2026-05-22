@@ -82,18 +82,18 @@ This document identifies all software configuration items (SCIs) for the Leo App
 
 **Note**: In production, `JWT_SECRET` must be provided via environment variable.
 
+### 5.2 Password Hashing
+| Setting | Value |
+|---------|-------|
+| Algorithm | bcrypt |
+| Cost | Default (10) |
+
 ### 5.3 OIDC Settings
 | Setting | Value |
 |---------|-------|
 | Flow | Authorization code |
 | Provider config | `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL` |
 | User mapping | Existing `User` model keyed by OIDC issuer/subject and email |
-
-### 5.2 Password Hashing
-| Setting | Value |
-|---------|-------|
-| Algorithm | bcrypt |
-| Cost | Default (10) |
 
 ## 6. API Configuration
 
