@@ -1,0 +1,11 @@
+lisa-addressed:
+---
+Comment (frontend/vite.config.ts:12):
+`API_BASE_URL` defaults to an empty string (so requests go to `/api/...`). With the current `vite.config.ts` there is no dev-server proxy for `/api`, so `npm run dev` will send API calls to the Vite origin and fail unless users manually set `VITE_API_BASE_URL`. Consider adding a `server.proxy` entry for `/api` (e.g., to `http://localhost:8080`) and/or reading the proxy target from an env var so local dev works out of the box.
+
+---
+Comment (frontend/tsconfig.json:3):
+`compilerOptions.composite: true` typically causes TypeScript to write a `.tsbuildinfo` file during `vue-tsc` runs, even with `noEmit`. That build artifact isn’t currently redirected (via `tsBuildInfoFile`) or ignored, so it will show up as an untracked file in the repo. Consider setting `tsBuildInfoFile` to a path under `node_modules/.tmp` (or removing `composite` if you don’t need project references).
+
+Implementation guidance: In frontend/vite.config.ts, add a dev server proxy for /api so local npm run dev works when VITE_API_BASE_URL is not set. Import loadEnv from vite alongside defineConfig and export defineConfig(({ mode }) => { const env = loadEnv(mode, process.cwd(), ""); const apiProxyTarget = env.VITE_API_PROXY_TARGET ?? "http://localhost:8080"; return { ...existing plugins/resolve config..., server: { proxy: { "/api": { target: apiProxyTarget, changeOrigin: true } } } }; }). Preserve the existing @ alias and Vue plugin. Do not change frontend/src/lib/api.ts API_BASE_URL behavior; the empty-string default should continue to produce /api requests that the Vite proxy handles in dev. Avoid using VITE_API_BASE_URL as the proxy target because that env var is consumed by client code and may be intentionally empty.
+Implementation guidance: In frontend/tsconfig.json, keep compilerOptions.composite: true but add compilerOptions.tsBuildInfoFile pointing to a generated path that is already ignored by the existing node_modules ignore rule, for example "./node_modules/.tmp/tsconfig.tsbuildinfo". Place it near composite/noEmit so it is easy to find. Do not remove composite unless you first verify project references are unnecessary, and do not add broad new ignore rules for this item; redirecting the build info under node_modules/.tmp is the narrow fix.
