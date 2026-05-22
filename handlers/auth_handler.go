@@ -137,13 +137,13 @@ func OIDCLogin(c *gin.Context) {
 		return
 	}
 
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ // #nosec G124 -- Secure is configurable for local HTTP development and defaults to true.
 		Name:     "oidc_state",
 		Value:    state,
 		Path:     "/api/auth/oidc",
 		MaxAge:   600,
 		Expires:  time.Now().Add(10 * time.Minute),
-		Secure:   oidcCookieSecure(), // #nosec G124 -- configurable for local HTTP development; defaults to secure.
+		Secure:   oidcCookieSecure(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
@@ -286,13 +286,13 @@ func randomState() (string, error) {
 }
 
 func clearOIDCStateCookie(c *gin.Context) {
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ // #nosec G124 -- Secure is configurable for local HTTP development and defaults to true.
 		Name:     "oidc_state",
 		Value:    "",
 		Path:     "/api/auth/oidc",
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
-		Secure:   oidcCookieSecure(), // #nosec G124 -- configurable for local HTTP development; defaults to secure.
+		Secure:   oidcCookieSecure(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
