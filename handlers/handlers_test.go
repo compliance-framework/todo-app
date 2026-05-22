@@ -1179,6 +1179,41 @@ func Test_REQ01_N_014_OIDCLoginNotConfigured(t *testing.T) {
 	}
 }
 
+// Test_REQ01_N_014A_OIDCLoginRandomStateError verifies OIDC login handles random source failures.
+func Test_REQ01_N_014A_OIDCLoginRandomStateError(t *testing.T) {
+	issuer, oidcClient := installTestOIDCProvider(t, testOIDCProvider{
+		key: mustGenerateRSAKey(t),
+	})
+	setTestOIDCEnv(t, issuer)
+
+	originalReader := randomReader
+	t.Cleanup(func() { randomReader = originalReader })
+
+	for _, tt := range []struct {
+		name            string
+		successfulReads int
+	}{
+		{name: "state", successfulReads: 0},
+		{name: "code_verifier", successfulReads: 1},
+		{name: "nonce", successfulReads: 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			randomReader = &failingRandomReader{successfulReads: tt.successfulReads}
+
+			router := gin.New()
+			router.GET("/api/auth/oidc/login", OIDCLogin)
+
+			req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/login", nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusInternalServerError {
+				t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
+			}
+		})
+	}
+}
+
 // Test_REQ01_P_011_OIDCLoginRedirect verifies OIDC login redirects to provider.
 func Test_REQ01_P_011_OIDCLoginRedirect(t *testing.T) {
 	issuer, oidcClient := installTestOIDCProvider(t, testOIDCProvider{
@@ -1839,6 +1874,13 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 	if _, err := randomState(); err == nil {
 		t.Error("Expected randomState error")
 	}
+	if _, err := decodeOIDCLoginState(&http.Cookie{Value: "not-base64"}); err == nil {
+		t.Error("Expected invalid base64 state cookie error")
+	}
+	invalidJSONValue := base64.RawURLEncoding.EncodeToString([]byte("{"))
+	if _, err := decodeOIDCLoginState(&http.Cookie{Value: invalidJSONValue}); err == nil {
+		t.Error("Expected invalid JSON state cookie error")
+	}
 
 	t.Setenv("OIDC_COOKIE_SECURE", "")
 	if !oidcCookieSecure() {
@@ -1900,6 +1942,22 @@ type errorReader struct{}
 
 func (errorReader) Read([]byte) (int, error) {
 	return 0, errors.New("random error")
+}
+
+type failingRandomReader struct {
+	successfulReads int
+	reads           int
+}
+
+func (r *failingRandomReader) Read(p []byte) (int, error) {
+	if r.reads >= r.successfulReads {
+		return 0, errors.New("random error")
+	}
+	r.reads++
+	for i := range p {
+		p[i] = 1
+	}
+	return len(p), nil
 }
 
 type shortReader struct {

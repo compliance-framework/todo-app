@@ -58,6 +58,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_012 | Test_REQ01_N_012_LoginInvalidJSON | Negative | handlers/handlers_test.go | Verify login fails with invalid JSON |
 | REQ01_N_013 | Test_REQ01_N_013_RegisterInvalidJSON | Negative | handlers/handlers_test.go | Verify registration fails with invalid JSON |
 | REQ01_N_014 | Test_REQ01_N_014_OIDCLoginNotConfigured | Negative | handlers/handlers_test.go | Verify OIDC login fails when disabled |
+| REQ01_N_014A | Test_REQ01_N_014A_OIDCLoginRandomStateError | Negative | handlers/handlers_test.go | Verify OIDC login handles random source failures |
 | REQ01_N_015 | Test_REQ01_N_015_OIDCCallbackInvalidState | Negative | handlers/handlers_test.go | Verify OIDC callback rejects invalid state |
 | REQ01_N_016 | Test_REQ01_N_016_OIDCCallbackMissingCode | Negative | handlers/handlers_test.go | Verify OIDC callback requires an auth code |
 | REQ01_N_017 | Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed | Negative | handlers/handlers_test.go | Verify OIDC callback handles token exchange failures |
