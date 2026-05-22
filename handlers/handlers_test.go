@@ -1479,8 +1479,8 @@ func Test_REQ01_P_013_UpsertOIDCUserDoesNotAttachUnverifiedEmail(t *testing.T) {
 	if user.Username == "existing@example.com" {
 		t.Fatalf("Expected unverified email not to be used as username, got %q", user.Username)
 	}
-	if user.Email == nil || *user.Email != "existing@example.com" {
-		t.Fatalf("Expected normalized email on new OIDC user, got %+v", user.Email)
+	if user.Email != nil {
+		t.Fatalf("Expected unverified email not to be stored, got %+v", user.Email)
 	}
 
 	var reloadedExisting models.User

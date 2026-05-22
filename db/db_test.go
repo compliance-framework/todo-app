@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"gorm.io/gorm"
@@ -227,7 +228,7 @@ func Test_DB_N_006_BuildRDSAuthTokenCredentialError(t *testing.T) {
 // Test_DB_N_005_IAMAuthConnectorConnectError verifies IAM connector connection errors.
 func Test_DB_N_005_IAMAuthConnectorConnectError(t *testing.T) {
 	cfg := Config{
-		Host:    "db.example.com",
+		Host:    "127.0.0.1",
 		Port:    "5432",
 		Name:    "todo",
 		User:    "app",
@@ -245,7 +246,9 @@ func Test_DB_N_005_IAMAuthConnectorConnectError(t *testing.T) {
 	if connector.Driver() == nil {
 		t.Error("Expected connector driver")
 	}
-	if _, err := connector.Connect(t.Context()); err == nil {
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	if _, err := connector.Connect(ctx); err == nil {
 		t.Error("Expected connection error")
 	}
 

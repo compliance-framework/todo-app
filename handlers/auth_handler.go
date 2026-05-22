@@ -234,8 +234,12 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 	}
 
 	claims.Email = strings.TrimSpace(claims.Email)
-	if claims.Email != "" && claims.EmailVerified {
-		err = db.GetDB().Where("email = ? OR username = ?", claims.Email, claims.Email).First(&user).Error
+	verifiedEmail := ""
+	if claims.EmailVerified {
+		verifiedEmail = claims.Email
+	}
+	if verifiedEmail != "" {
+		err = db.GetDB().Where("email = ? OR username = ?", verifiedEmail, verifiedEmail).First(&user).Error
 		if err == nil {
 			return attachOIDCIdentity(user, issuer, claims)
 		}
@@ -251,7 +255,7 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 	user = models.User{
 		Username:     oidcUsername(usernameClaims),
 		Password:     "OIDC_LOGIN_ONLY", // #nosec G101 -- non-secret sentinel; OIDC users do not use password login.
-		Email:        stringPointerOrNil(claims.Email),
+		Email:        stringPointerOrNil(verifiedEmail),
 		OIDCIssuer:   &issuer,
 		OIDCSubject:  &claims.Subject,
 		AuthProvider: "oidc",
@@ -272,7 +276,8 @@ func attachOIDCIdentity(user models.User, issuer string, claims auth.OIDCClaims)
 	user.OIDCIssuer = &issuer
 	user.OIDCSubject = &claims.Subject
 	user.AuthProvider = "oidc"
-	if claims.Email != "" {
+	claims.Email = strings.TrimSpace(claims.Email)
+	if claims.EmailVerified && claims.Email != "" {
 		user.Email = &claims.Email
 	}
 	if err := db.GetDB().Save(&user).Error; err != nil {
