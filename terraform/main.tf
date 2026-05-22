@@ -190,12 +190,16 @@ resource "aws_security_group" "alb" {
   name        = "${local.name}-alb"
   description = "Allow HTTPS from the internet to the ALB"
   vpc_id      = aws_vpc.app.id
+
+  egress = []
 }
 
 resource "aws_security_group" "app" {
   name        = "${local.name}-app"
   description = "Allow app traffic only from the ALB"
   vpc_id      = aws_vpc.app.id
+
+  egress = []
 }
 
 resource "aws_security_group_rule" "alb_ingress_https" {
@@ -508,9 +512,29 @@ resource "aws_launch_template" "app" {
   tag_specifications {
     resource_type = "instance"
 
-    tags = {
-      Name = local.name
-    }
+    tags = merge(
+      {
+        Name        = local.name
+        Application = "todo-app"
+        Environment = var.environment
+        ManagedBy   = "terraform"
+      },
+      var.ticket_tag == null ? {} : { Ticket = var.ticket_tag }
+    )
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+
+    tags = merge(
+      {
+        Name        = "${local.name}-volume"
+        Application = "todo-app"
+        Environment = var.environment
+        ManagedBy   = "terraform"
+      },
+      var.ticket_tag == null ? {} : { Ticket = var.ticket_tag }
+    )
   }
 }
 
@@ -545,6 +569,23 @@ resource "aws_autoscaling_group" "app" {
     key                 = "cloud-custodian-note"
     value               = "Size-1 ASG used so the demo EC2 host is not a bare instance."
     propagate_at_launch = true
+  }
+
+  dynamic "tag" {
+    for_each = merge(
+      {
+        Application = "todo-app"
+        Environment = var.environment
+        ManagedBy   = "terraform"
+      },
+      var.ticket_tag == null ? {} : { Ticket = var.ticket_tag }
+    )
+
+    content {
+      key                 = tag.key
+      value               = tag.value
+      propagate_at_launch = true
+    }
   }
 }
 

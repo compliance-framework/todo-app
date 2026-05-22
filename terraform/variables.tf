@@ -61,12 +61,42 @@ variable "public_subnet_cidrs" {
   description = "CIDR blocks for public ALB subnets."
   type        = list(string)
   default     = ["10.42.0.0/24", "10.42.1.0/24"]
+
+  validation {
+    condition     = length(var.public_subnet_cidrs) >= 2
+    error_message = "public_subnet_cidrs must contain at least two CIDR blocks for the ALB."
+  }
+
+  validation {
+    condition     = alltrue([for cidr in var.public_subnet_cidrs : can(cidrhost(cidr, 0))])
+    error_message = "public_subnet_cidrs must contain only valid CIDR blocks."
+  }
+
+  validation {
+    condition     = length(var.public_subnet_cidrs) == length(var.private_subnet_cidrs)
+    error_message = "public_subnet_cidrs and private_subnet_cidrs must contain the same number of CIDR blocks."
+  }
 }
 
 variable "private_subnet_cidrs" {
   description = "CIDR blocks for private EC2 subnets."
   type        = list(string)
   default     = ["10.42.10.0/24", "10.42.11.0/24"]
+
+  validation {
+    condition     = length(var.private_subnet_cidrs) >= 2
+    error_message = "private_subnet_cidrs must contain at least two CIDR blocks."
+  }
+
+  validation {
+    condition     = alltrue([for cidr in var.private_subnet_cidrs : can(cidrhost(cidr, 0))])
+    error_message = "private_subnet_cidrs must contain only valid CIDR blocks."
+  }
+
+  validation {
+    condition     = length(var.private_subnet_cidrs) == length(var.public_subnet_cidrs)
+    error_message = "private_subnet_cidrs and public_subnet_cidrs must contain the same number of CIDR blocks."
+  }
 }
 
 variable "app_port" {
