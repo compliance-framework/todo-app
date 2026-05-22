@@ -15,8 +15,8 @@ variable "environment" {
   }
 
   validation {
-    condition     = length(var.environment) <= 15
-    error_message = "environment must be 15 characters or fewer so name_prefix plus environment remains short enough for derived AWS resource names."
+    condition     = length("${var.name_prefix}-${var.environment}") <= 32
+    error_message = "name_prefix plus environment must be 32 characters or fewer when combined as name_prefix-environment for derived AWS resource names."
   }
 }
 
@@ -31,8 +31,8 @@ variable "name_prefix" {
   }
 
   validation {
-    condition     = length(var.name_prefix) <= 16
-    error_message = "name_prefix must be 16 characters or fewer so name_prefix plus environment remains short enough for derived AWS resource names."
+    condition     = length("${var.name_prefix}-${var.environment}") <= 32
+    error_message = "name_prefix plus environment must be 32 characters or fewer when combined as name_prefix-environment for derived AWS resource names."
   }
 }
 
