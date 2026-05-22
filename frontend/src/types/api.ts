@@ -21,6 +21,11 @@ export interface LoginResponse {
   user: User;
 }
 
+export interface RegisterResponse {
+  message: string;
+  user: User;
+}
+
 export interface ApiErrorBody {
   error?: string;
   message?: string;

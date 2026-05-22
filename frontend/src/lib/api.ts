@@ -1,4 +1,4 @@
-import type { ApiErrorBody, LoginResponse, Todo } from "@/types/api";
+import type { ApiErrorBody, LoginResponse, RegisterResponse, Todo } from "@/types/api";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
@@ -17,12 +17,17 @@ export interface ApiClientOptions {
   onUnauthorized: () => void;
 }
 
+type ApiRequestOptions = RequestInit & {
+  skipUnauthorizedHandler?: boolean;
+};
+
 export function createApiClient({ getToken, onUnauthorized }: ApiClientOptions) {
-  async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const headers = new Headers(options.headers);
+  async function request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+    const { skipUnauthorizedHandler = false, ...fetchOptions } = options;
+    const headers = new Headers(fetchOptions.headers);
     const token = getToken();
 
-    if (options.body && !headers.has("Content-Type")) {
+    if (fetchOptions.body && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
     }
 
@@ -31,11 +36,11 @@ export function createApiClient({ getToken, onUnauthorized }: ApiClientOptions) 
     }
 
     const response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
+      ...fetchOptions,
       headers,
     });
 
-    if (response.status === 401) {
+    if (response.status === 401 && token && !skipUnauthorizedHandler) {
       onUnauthorized();
     }
 
@@ -55,12 +60,14 @@ export function createApiClient({ getToken, onUnauthorized }: ApiClientOptions) 
       return request<LoginResponse>("/api/login", {
         method: "POST",
         body: JSON.stringify({ username, password }),
+        skipUnauthorizedHandler: true,
       });
     },
     register(username: string, password: string) {
-      return request<{ message: string }>("/api/register", {
+      return request<RegisterResponse>("/api/register", {
         method: "POST",
         body: JSON.stringify({ username, password }),
+        skipUnauthorizedHandler: true,
       });
     },
     listTodos() {

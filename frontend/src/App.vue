@@ -97,10 +97,13 @@ async function submitAuth() {
 
   authLoading.value = true;
 
+  let fallbackMessage = authMode.value === "register" ? "Unable to register." : "Unable to sign in.";
+
   try {
     if (authMode.value === "register") {
       await api.register(username, authForm.password);
       statusMessage.value = "Account created.";
+      fallbackMessage = "Account created, but unable to sign in.";
     }
 
     const response = await api.login(username, authForm.password);
@@ -108,7 +111,7 @@ async function submitAuth() {
     authForm.password = "";
     statusMessage.value = authMode.value === "register" ? "Account created and signed in." : "Signed in.";
   } catch (error) {
-    setError(error, authMode.value === "register" ? "Unable to register." : "Unable to sign in.");
+    setError(error, fallbackMessage);
   } finally {
     authLoading.value = false;
   }
