@@ -102,7 +102,9 @@ This document provides traceability from software requirements to test cases, en
 | Models_P_002 | Test_Models_P_002_TodoTableName | Positive | models/models_test.go | Verify Todo.TableName returns correct table name |
 | Main_P_001 | Test_Main_P_001_SetupRouter | Positive | main_test.go | Verify router setup works correctly |
 | Main_P_002 | Test_Main_P_002_HealthCheck | Positive | main_test.go | Verify health check endpoint works |
-| Main_P_003 | Test_Main_P_003_CORSMiddleware | Positive | main_test.go | Verify CORS headers are set |
+| Main_P_002B | Test_Main_P_002B_AuthConfig | Positive | main_test.go | Verify auth config endpoint exposes OIDC state |
+| Main_P_003 | Test_Main_P_003_CORSMiddlewareDefaultSameOrigin | Positive | main_test.go | Verify CORS defaults to same-origin only |
+| Main_P_003B | Test_Main_P_003B_CORSMiddlewareConfigured | Positive | main_test.go | Verify configured CORS origin is allowed |
 | Main_P_004 | Test_Main_P_004_CORSMiddlewareOptions | Positive | main_test.go | Verify OPTIONS request handling |
 | Main_P_005 | Test_Main_P_005_GetDBPathDefault | Positive | main_test.go | Verify default DB path |
 | Main_P_006 | Test_Main_P_006_GetDBPathEnv | Positive | main_test.go | Verify DB path from environment |
@@ -113,12 +115,12 @@ This document provides traceability from software requirements to test cases, en
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 23 | 6 | 12 | 5 |
+| REQ01 | 24 | 6 | 13 | 5 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
-| Infrastructure | 15 | 15 | 0 | 0 |
-| **Total** | **68** | **29** | **26** | **13** |
+| Infrastructure | 17 | 15 | 2 | 0 |
+| **Total** | **71** | **29** | **29** | **13** |
 
 ## 5. Code Coverage
 
