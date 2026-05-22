@@ -42,6 +42,7 @@ This document provides traceability from software requirements to test cases, en
 | Auth_P_003 | Test_Auth_P_003_IsDevelopmentModeFallbacks | Positive | auth/auth_test.go | Verify development mode detection |
 | Auth_P_004 | Test_Auth_P_004_OIDCConfigFromEnv | Positive | auth/auth_test.go | Verify OIDC config is read from environment |
 | Auth_P_005 | Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess | Positive | auth/auth_test.go | Verify OIDC provider discovery configures OAuth2 |
+| Auth_P_006 | Test_Auth_P_006_OIDCConfigOAuth2ConfigConcurrentDiscoverySingleflight | Positive | auth/auth_test.go | Verify concurrent OIDC provider discovery is deduplicated |
 | REQ01_N_001 | Test_REQ01_N_001_CheckWrongPassword | Negative | auth/auth_test.go | Verify wrong password fails check |
 | REQ01_N_002 | Test_REQ01_N_002_ValidateInvalidToken | Negative | auth/auth_test.go | Verify invalid token is rejected |
 | REQ01_N_003 | Test_REQ01_N_003_AuthMiddlewareNoHeader | Negative | auth/auth_test.go | Verify middleware rejects missing header |
@@ -165,12 +166,12 @@ This document provides traceability from software requirements to test cases, en
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 55 | 23 | 24 | 8 |
+| REQ01 | 56 | 24 | 24 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
 | Infrastructure | 36 | 26 | 10 | 0 |
-| **Total** | **121** | **57** | **48** | **16** |
+| **Total** | **122** | **58** | **48** | **16** |
 
 ## 5. Code Coverage
 
