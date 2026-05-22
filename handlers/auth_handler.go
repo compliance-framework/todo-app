@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -16,7 +17,9 @@ import (
 	"github.com/ContainerSolutions/todo-app/auth"
 	"github.com/ContainerSolutions/todo-app/db"
 	"github.com/ContainerSolutions/todo-app/models"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
 
@@ -41,6 +44,12 @@ type LoginResponse struct {
 // AuthConfigResponse exposes configured authentication options.
 type AuthConfigResponse struct {
 	OIDCConfigured bool `json:"oidc_configured"`
+}
+
+type oidcLoginState struct {
+	State        string `json:"state"`
+	CodeVerifier string `json:"code_verifier"`
+	Nonce        string `json:"nonce"`
 }
 
 var randomReader = rand.Reader
@@ -143,10 +152,29 @@ func OIDCLogin(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start OIDC login"})
 		return
 	}
+	codeVerifier, err := randomState()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start OIDC login"})
+		return
+	}
+	nonce, err := randomState()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start OIDC login"})
+		return
+	}
+	cookieValue, err := encodeOIDCLoginState(oidcLoginState{
+		State:        state,
+		CodeVerifier: codeVerifier,
+		Nonce:        nonce,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start OIDC login"})
+		return
+	}
 
 	http.SetCookie(c.Writer, &http.Cookie{ // #nosec G124 -- Secure is configurable for local HTTP development and defaults to true.
 		Name:     "oidc_state",
-		Value:    state,
+		Value:    cookieValue,
 		Path:     "/api/auth/oidc",
 		MaxAge:   600,
 		Expires:  time.Now().Add(10 * time.Minute),
@@ -154,13 +182,19 @@ func OIDCLogin(c *gin.Context) {
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
-	c.Redirect(http.StatusFound, oauthConfig.AuthCodeURL(state))
+	c.Redirect(http.StatusFound, oauthConfig.AuthCodeURL(
+		state,
+		oauth2.SetAuthURLParam("code_challenge", pkceChallenge(codeVerifier)),
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+		oidc.Nonce(nonce),
+	))
 }
 
 // OIDCCallback handles the provider authorization-code callback.
 func OIDCCallback(c *gin.Context) {
 	stateCookie, err := c.Request.Cookie("oidc_state")
-	if err != nil || stateCookie.Value == "" || stateCookie.Value != c.Query("state") {
+	loginState, stateErr := decodeOIDCLoginState(stateCookie)
+	if err != nil || stateErr != nil || loginState.State == "" || loginState.CodeVerifier == "" || loginState.Nonce == "" || loginState.State != c.Query("state") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid OIDC state"})
 		return
 	}
@@ -179,7 +213,7 @@ func OIDCCallback(c *gin.Context) {
 		return
 	}
 
-	oauthToken, err := oauthConfig.Exchange(c.Request.Context(), code)
+	oauthToken, err := oauthConfig.Exchange(c.Request.Context(), code, oauth2.SetAuthURLParam("code_verifier", loginState.CodeVerifier))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "OIDC token exchange failed"})
 		return
@@ -200,6 +234,10 @@ func OIDCCallback(c *gin.Context) {
 	var claims auth.OIDCClaims
 	if err := idToken.Claims(&claims); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "OIDC claims are invalid"})
+		return
+	}
+	if claims.Nonce != loginState.Nonce {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "OIDC nonce is invalid"})
 		return
 	}
 	if claims.Subject == "" {
@@ -364,6 +402,34 @@ func randomState() (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
+func encodeOIDCLoginState(state oidcLoginState) (string, error) {
+	data, err := json.Marshal(state)
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(data), nil
+}
+
+func decodeOIDCLoginState(cookie *http.Cookie) (oidcLoginState, error) {
+	if cookie == nil || cookie.Value == "" {
+		return oidcLoginState{}, errors.New("missing OIDC state")
+	}
+	data, err := base64.RawURLEncoding.DecodeString(cookie.Value)
+	if err != nil {
+		return oidcLoginState{}, err
+	}
+	var state oidcLoginState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return oidcLoginState{}, err
+	}
+	return state, nil
+}
+
+func pkceChallenge(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 func clearOIDCStateCookie(c *gin.Context) {

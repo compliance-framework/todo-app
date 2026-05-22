@@ -156,6 +156,11 @@ func Test_DB_N_004_ValidatePostgresConfig(t *testing.T) {
 	if err := validatePostgresConfig(valid); err != nil {
 		t.Fatalf("Expected valid config, got %v", err)
 	}
+	verifyCA := valid
+	verifyCA.SSLMode = "verify-ca"
+	if err := validatePostgresConfig(verifyCA); err != nil {
+		t.Fatalf("Expected verify-ca config to be valid, got %v", err)
+	}
 	if _, err := openPostgres(t.Context(), Config{Driver: "postgres"}); err == nil {
 		t.Error("Expected openPostgres validation error")
 	}
@@ -164,6 +169,10 @@ func Test_DB_N_004_ValidatePostgresConfig(t *testing.T) {
 		"missing required":  {Port: "5432", Region: "us-east-1", SSLMode: "verify-full", IAMAuth: true},
 		"missing region":    {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", SSLMode: "verify-full", IAMAuth: true},
 		"disabled tls":      {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "disable", IAMAuth: true},
+		"require sslmode":   {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "require", IAMAuth: true},
+		"prefer sslmode":    {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "prefer", IAMAuth: true},
+		"allow sslmode":     {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "allow", IAMAuth: true},
+		"empty sslmode":     {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", Region: "us-east-1", SSLMode: " ", IAMAuth: true},
 		"invalid port":      {Host: "db.example.com", Port: "bad", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "verify-full", IAMAuth: true},
 		"negative max open": {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "verify-full", IAMAuth: true, MaxOpenConns: -1},
 		"negative max idle": {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "verify-full", IAMAuth: true, MaxIdleConns: -1},

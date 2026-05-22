@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -1201,10 +1202,34 @@ func Test_REQ01_P_011_OIDCLoginRedirect(t *testing.T) {
 	if !strings.HasPrefix(w.Header().Get("Location"), issuer+"/auth") {
 		t.Errorf("Expected redirect to provider auth endpoint, got %q", w.Header().Get("Location"))
 	}
+	location, err := url.Parse(w.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("Parse redirect location: %v", err)
+	}
+	query := location.Query()
+	if query.Get("code_challenge_method") != "S256" {
+		t.Errorf("Expected S256 PKCE challenge method, got %q", query.Get("code_challenge_method"))
+	}
+	if query.Get("code_challenge") == "" {
+		t.Error("Expected PKCE code challenge")
+	}
+	if query.Get("nonce") == "" {
+		t.Error("Expected OIDC nonce")
+	}
 	result := w.Result()
 	defer result.Body.Close()
 	if len(result.Cookies()) == 0 {
 		t.Error("Expected OIDC state cookie")
+	}
+	loginState, err := decodeOIDCLoginState(result.Cookies()[0])
+	if err != nil {
+		t.Fatalf("Decode OIDC state cookie: %v", err)
+	}
+	if loginState.State != query.Get("state") || loginState.Nonce != query.Get("nonce") {
+		t.Fatalf("OIDC state cookie does not match redirect parameters: %+v", loginState)
+	}
+	if pkceChallenge(loginState.CodeVerifier) != query.Get("code_challenge") {
+		t.Error("OIDC state cookie code verifier does not match redirect PKCE challenge")
 	}
 }
 
@@ -1228,7 +1253,7 @@ func Test_REQ01_N_016_OIDCCallbackMissingCode(t *testing.T) {
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
 	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state", nil)
-	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -1255,7 +1280,7 @@ func Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed(t *testing.T) {
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
 	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
-	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -1276,7 +1301,7 @@ func Test_REQ01_N_018_OIDCCallbackMissingIDToken(t *testing.T) {
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
 	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
-	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -1297,7 +1322,7 @@ func Test_REQ01_N_019_OIDCCallbackInvalidIDToken(t *testing.T) {
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
 	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
-	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -1325,7 +1350,7 @@ func Test_REQ01_P_012_OIDCCallbackSuccess(t *testing.T) {
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
 	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
-	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -1350,7 +1375,7 @@ func Test_REQ01_N_020_OIDCCallbackProviderConfigError(t *testing.T) {
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
 	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
-	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -1385,7 +1410,35 @@ func Test_REQ01_N_021_OIDCCallbackInvalidClaims(t *testing.T) {
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
 	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
-	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+// Test_REQ01_N_023_OIDCCallbackInvalidNonce verifies callback binds ID tokens to the login nonce.
+func Test_REQ01_N_023_OIDCCallbackInvalidNonce(t *testing.T) {
+	setupTestDB(t)
+	key := mustGenerateRSAKey(t)
+	var issuer string
+	var oidcClient *http.Client
+	issuer, oidcClient = installTestOIDCProvider(t, testOIDCProvider{
+		key: key,
+		tokenBody: func() string {
+			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
+				mustSignIDToken(t, key, issuer, "client-id", "subject-bad-nonce", "bad-nonce@example.com", "wrong-nonce") + `"}`
+		},
+	})
+	setTestOIDCEnv(t, issuer)
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -1418,7 +1471,7 @@ func Test_REQ01_N_022_OIDCCallbackAccountLinkingConflict(t *testing.T) {
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
 	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
-	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -1452,7 +1505,7 @@ func Test_REQ01_E_006_OIDCCallbackGenerateTokenError(t *testing.T) {
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
 	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
-	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -1852,6 +1905,19 @@ func setTestOIDCEnv(t *testing.T, issuer string) {
 	t.Setenv("OIDC_REDIRECT_URL", "https://app.example.com/callback")
 }
 
+func testOIDCStateCookie(t *testing.T, state, nonce string) *http.Cookie {
+	t.Helper()
+	value, err := encodeOIDCLoginState(oidcLoginState{
+		State:        state,
+		CodeVerifier: "test-code-verifier",
+		Nonce:        nonce,
+	})
+	if err != nil {
+		t.Fatalf("encode OIDC login state: %v", err)
+	}
+	return &http.Cookie{Name: "oidc_state", Value: value}
+}
+
 type testOIDCProvider struct {
 	key         *rsa.PrivateKey
 	tokenStatus int
@@ -1917,14 +1983,19 @@ func mustGenerateRSAKey(t *testing.T) *rsa.PrivateKey {
 	return key
 }
 
-func mustSignIDToken(t *testing.T, key *rsa.PrivateKey, issuer, audience, subject, email string) string {
+func mustSignIDToken(t *testing.T, key *rsa.PrivateKey, issuer, audience, subject, email string, nonce ...string) string {
 	t.Helper()
+	tokenNonce := "nonce"
+	if len(nonce) > 0 {
+		tokenNonce = nonce[0]
+	}
 	return mustSignIDTokenClaims(t, key, jwt.MapClaims{
 		"iss":            issuer,
 		"aud":            audience,
 		"sub":            subject,
 		"email":          email,
 		"email_verified": true,
+		"nonce":          tokenNonce,
 		"exp":            time.Now().Add(time.Hour).Unix(),
 		"iat":            time.Now().Unix(),
 	})

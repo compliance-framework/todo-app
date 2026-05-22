@@ -25,6 +25,7 @@ type OIDCClaims struct {
 	EmailVerified     bool   `json:"email_verified"`
 	Name              string `json:"name"`
 	PreferredUsername string `json:"preferred_username"`
+	Nonce             string `json:"nonce"`
 }
 
 type oidcProviderCacheKey struct {

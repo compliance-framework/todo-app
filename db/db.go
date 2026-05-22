@@ -174,8 +174,10 @@ func validatePostgresConfig(cfg Config) error {
 	if cfg.IAMAuth && cfg.Region == "" {
 		return errors.New("DB_REGION or AWS_REGION is required when DB_IAM_AUTH is enabled")
 	}
-	if strings.EqualFold(cfg.SSLMode, "disable") {
-		return errors.New("PostgreSQL connections must use TLS; DB_SSLMODE cannot be disabled")
+	switch strings.ToLower(strings.TrimSpace(cfg.SSLMode)) {
+	case "verify-full", "verify-ca":
+	default:
+		return errors.New("DB_SSLMODE must be verify-full or verify-ca")
 	}
 	if _, err := strconv.Atoi(cfg.Port); err != nil {
 		return fmt.Errorf("invalid DB_PORT %q: %w", cfg.Port, err)
