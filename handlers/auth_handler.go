@@ -222,10 +222,7 @@ func OIDCCallback(c *gin.Context) {
 
 func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) {
 	var user models.User
-	err := db.GetDB().
-		Where("oidc_issuer = ? AND oidc_subject = ?", issuer, claims.Subject).
-		First(&user).
-		Error
+	err := findOIDCUser(issuer, claims.Subject, &user)
 	if err == nil {
 		return user, nil
 	}
@@ -271,10 +268,25 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		OIDCSubject:  &claims.Subject,
 		AuthProvider: "oidc",
 	}
-	if err := db.GetDB().Create(&user).Error; err != nil {
+	if err := createOIDCUser(&user); err != nil {
+		var existing models.User
+		if lookupErr := findOIDCUser(issuer, claims.Subject, &existing); lookupErr == nil {
+			return existing, nil
+		}
 		return models.User{}, err
 	}
 	return user, nil
+}
+
+var createOIDCUser = func(user *models.User) error {
+	return db.GetDB().Create(user).Error
+}
+
+func findOIDCUser(issuer, subject string, user *models.User) error {
+	return db.GetDB().
+		Where("oidc_issuer = ? AND oidc_subject = ?", issuer, subject).
+		First(user).
+		Error
 }
 
 func attachOIDCIdentity(user models.User, issuer string, claims auth.OIDCClaims) (models.User, error) {

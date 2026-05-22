@@ -1455,6 +1455,36 @@ func Test_REQ01_P_008_UpsertOIDCUserCreateAndFind(t *testing.T) {
 	}
 }
 
+// Test_REQ01_P_008B_UpsertOIDCUserRetriesAfterCreateRace verifies concurrent creates are idempotent.
+func Test_REQ01_P_008B_UpsertOIDCUserRetriesAfterCreateRace(t *testing.T) {
+	setupTestDB(t)
+
+	issuer := "https://issuer.example.com"
+	claims := auth.OIDCClaims{
+		Subject:       "subject-race",
+		Email:         "race@example.com",
+		EmailVerified: true,
+	}
+	originalCreateOIDCUser := createOIDCUser
+	t.Cleanup(func() { createOIDCUser = originalCreateOIDCUser })
+
+	createOIDCUser = func(user *models.User) error {
+		competingUser := *user
+		if err := originalCreateOIDCUser(&competingUser); err != nil {
+			t.Fatalf("Failed to create competing OIDC user: %v", err)
+		}
+		return errors.New("UNIQUE constraint failed: users.oidc_issuer, users.oidc_subject")
+	}
+
+	user, err := upsertOIDCUser(issuer, claims)
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error after create race: %v", err)
+	}
+	if user.ID == 0 || user.OIDCIssuer == nil || *user.OIDCIssuer != issuer || user.OIDCSubject == nil || *user.OIDCSubject != claims.Subject {
+		t.Fatalf("Expected existing OIDC user after create race, got %+v", user)
+	}
+}
+
 // Test_REQ01_P_009_UpsertOIDCUserAttachByEmail verifies OIDC identity attaches by email.
 func Test_REQ01_P_009_UpsertOIDCUserAttachByEmail(t *testing.T) {
 	setupTestDB(t)

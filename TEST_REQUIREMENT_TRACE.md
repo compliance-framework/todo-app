@@ -136,11 +136,13 @@ This document provides traceability from software requirements to test cases, en
 | DB_N_004 | Test_DB_N_004_ValidatePostgresConfig | Negative | db/db_test.go | Verify PostgreSQL config validation |
 | DB_N_005 | Test_DB_N_005_IAMAuthConnectorConnectError | Negative | db/db_test.go | Verify IAM connector connection errors |
 | DB_N_006 | Test_DB_N_006_BuildRDSAuthTokenCredentialError | Negative | db/db_test.go | Verify RDS IAM auth token credential errors |
+| DB_N_007 | Test_DB_N_007_OpenPostgresClosesSQLDBOnGormOpenError | Negative | db/db_test.go | Verify openPostgres closes sql.DB when GORM open fails |
 | Models_P_001 | Test_Models_P_001_UserTableName | Positive | models/models_test.go | Verify User.TableName returns correct table name |
 | Models_P_002 | Test_Models_P_002_TodoTableName | Positive | models/models_test.go | Verify Todo.TableName returns correct table name |
 | Main_P_001 | Test_Main_P_001_SetupRouter | Positive | main_test.go | Verify router setup works correctly |
 | Main_P_002 | Test_Main_P_002_HealthCheck | Positive | main_test.go | Verify health check endpoint works |
 | Main_P_002B | Test_Main_P_002B_AuthConfig | Positive | main_test.go | Verify auth config endpoint exposes OIDC state |
+| Main_P_002C | Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic | Positive | main_test.go | Verify audit log middleware logs recovered panics |
 | Main_P_003 | Test_Main_P_003_CORSMiddlewareDefaultSameOrigin | Positive | main_test.go | Verify CORS defaults to same-origin only |
 | Main_P_003B | Test_Main_P_003B_CORSMiddlewareConfigured | Positive | main_test.go | Verify configured CORS origin is allowed |
 | Main_P_004 | Test_Main_P_004_CORSMiddlewareOptions | Positive | main_test.go | Verify OPTIONS request handling |
@@ -161,8 +163,8 @@ This document provides traceability from software requirements to test cases, en
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
-| Infrastructure | 33 | 24 | 9 | 0 |
-| **Total** | **113** | **51** | **46** | **16** |
+| Infrastructure | 35 | 25 | 10 | 0 |
+| **Total** | **115** | **52** | **47** | **16** |
 
 ## 5. Code Coverage
 
