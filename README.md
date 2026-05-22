@@ -90,6 +90,7 @@ go build -o todo-app
 - `OIDC_CLIENT_ID` - OIDC client ID
 - `OIDC_CLIENT_SECRET` - OIDC client secret
 - `OIDC_REDIRECT_URL` - OIDC redirect URL
+- `OIDC_COOKIE_SECURE` - Set OIDC state cookie `Secure` attribute (default: true; set false only for local HTTP)
 
 ## Testing
 

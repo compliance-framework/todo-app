@@ -27,6 +27,11 @@ import (
 
 var DB *gorm.DB
 
+var rdsCABundlePaths = []string{
+	"/etc/ssl/certs/global-bundle.pem",
+	"/opt/rds-ca/global-bundle.pem",
+}
+
 // AutoMigrateFunc is the function used for auto-migration (can be mocked for testing)
 var AutoMigrateFunc = func(db *gorm.DB) error {
 	return db.AutoMigrate(&models.User{}, &models.Todo{})
@@ -119,10 +124,10 @@ func openPostgres(ctx context.Context, cfg Config) (*gorm.DB, error) {
 		if err != nil {
 			return nil, err
 		}
-		return gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{})
+		return gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{DisableAutomaticPing: true})
 	}
 
-	return gorm.Open(postgres.Open(postgresDSN(cfg, cfg.Password)), &gorm.Config{})
+	return gorm.Open(postgres.Open(postgresDSN(cfg, cfg.Password)), &gorm.Config{DisableAutomaticPing: true})
 }
 
 func validatePostgresConfig(cfg Config) error {
@@ -274,10 +279,7 @@ func firstNonEmpty(values ...string) string {
 }
 
 func defaultRDSCABundlePath() string {
-	for _, path := range []string{
-		"/etc/ssl/certs/global-bundle.pem",
-		"/opt/rds-ca/global-bundle.pem",
-	} {
+	for _, path := range rdsCABundlePaths {
 		if _, err := os.Stat(path); err == nil {
 			return path
 		}

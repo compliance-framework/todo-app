@@ -27,6 +27,7 @@ This document identifies all software configuration items (SCIs) for the Leo App
 | `OIDC_CLIENT_ID` | OIDC client ID | none | Required for OIDC |
 | `OIDC_CLIENT_SECRET` | OIDC client secret | none | Required for OIDC |
 | `OIDC_REDIRECT_URL` | OIDC redirect URL | none | Required for OIDC |
+| `OIDC_COOKIE_SECURE` | Whether OIDC state cookies use the `Secure` attribute | `true` | No |
 
 ## 3. Source Code Configuration Items
 

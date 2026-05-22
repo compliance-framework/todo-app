@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +41,8 @@ type LoginResponse struct {
 type AuthConfigResponse struct {
 	OIDCConfigured bool `json:"oidc_configured"`
 }
+
+var randomReader = rand.Reader
 
 // Register handles user registration
 // REQ01: Users should be able to LOGIN (registration is prerequisite)
@@ -139,6 +143,7 @@ func OIDCLogin(c *gin.Context) {
 		Path:     "/api/auth/oidc",
 		MaxAge:   600,
 		Expires:  time.Now().Add(10 * time.Minute),
+		Secure:   oidcCookieSecure(), // #nosec G124 -- configurable for local HTTP development; defaults to secure.
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
@@ -274,7 +279,7 @@ func oidcUsername(claims auth.OIDCClaims) string {
 
 func randomState() (string, error) {
 	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
+	if _, err := randomReader.Read(bytes); err != nil {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(bytes), nil
@@ -287,9 +292,22 @@ func clearOIDCStateCookie(c *gin.Context) {
 		Path:     "/api/auth/oidc",
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
+		Secure:   oidcCookieSecure(), // #nosec G124 -- configurable for local HTTP development; defaults to secure.
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+func oidcCookieSecure() bool {
+	value := os.Getenv("OIDC_COOKIE_SECURE")
+	if value == "" {
+		return true
+	}
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		return true
+	}
+	return enabled
 }
 
 func stringPointerOrNil(value string) *string {

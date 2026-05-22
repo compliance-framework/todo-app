@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -12,6 +13,13 @@ import (
 	"github.com/ContainerSolutions/todo-app/db"
 	"github.com/ContainerSolutions/todo-app/handlers"
 	"github.com/gin-gonic/gin"
+)
+
+var (
+	initDBFunc    = db.InitDBWithConfig
+	startServerFn = func(r *gin.Engine, addr string) error {
+		return r.Run(addr)
+	}
 )
 
 // SetupRouter creates and configures the Gin router with all routes
@@ -123,21 +131,29 @@ func GetPort() string {
 	return port
 }
 
-func main() {
+func run(ctx context.Context) error {
 	if err := auth.ConfigureJWTSecretFromEnv(); err != nil {
-		log.Fatalf("Invalid auth configuration: %v", err)
+		return fmt.Errorf("invalid auth configuration: %w", err)
 	}
 
 	// Initialize database
-	if err := db.InitDBWithConfig(context.Background(), db.ConfigFromEnv()); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+	if err := initDBFunc(ctx, db.ConfigFromEnv()); err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 
 	r := SetupRouter()
 
 	port := GetPort()
 	log.Printf("Starting todo App on port %s", port)
-	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	if err := startServerFn(r, ":"+port); err != nil {
+		return fmt.Errorf("failed to start server: %w", err)
+	}
+
+	return nil
+}
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
 	}
 }

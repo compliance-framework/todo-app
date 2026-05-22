@@ -25,6 +25,17 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_P_004 | Test_REQ01_P_004_GetUserIDFromContextSuccess | Positive | auth/auth_test.go | Verify user ID extraction from context |
 | REQ01_P_005 | Test_REQ01_P_005_LoginSuccess | Positive | handlers/handlers_test.go | Verify user can login with valid credentials |
 | REQ01_P_006 | Test_REQ01_P_006_RegisterSuccess | Positive | handlers/handlers_test.go | Verify user can register a new account |
+| REQ01_P_007 | Test_REQ01_P_007_AuthConfig | Positive | handlers/handlers_test.go | Verify auth config reports OIDC availability |
+| REQ01_P_008 | Test_REQ01_P_008_UpsertOIDCUserCreateAndFind | Positive | handlers/handlers_test.go | Verify OIDC users are created and reused |
+| REQ01_P_009 | Test_REQ01_P_009_UpsertOIDCUserAttachByEmail | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by email |
+| REQ01_P_010 | Test_REQ01_P_010_OIDCUtilities | Positive | handlers/handlers_test.go | Verify OIDC utility helpers |
+| REQ01_P_011 | Test_REQ01_P_011_OIDCLoginRedirect | Positive | handlers/handlers_test.go | Verify OIDC login redirects to provider |
+| REQ01_P_012 | Test_REQ01_P_012_OIDCCallbackSuccess | Positive | handlers/handlers_test.go | Verify OIDC callback creates user and returns app JWT |
+| Auth_P_001 | Test_Auth_P_001_ConfigureJWTSecretFromEnv | Positive | auth/auth_test.go | Verify JWT secret is read from environment |
+| Auth_P_002 | Test_Auth_P_002_ConfigureJWTSecretDevelopmentFallback | Positive | auth/auth_test.go | Verify development JWT secret fallback |
+| Auth_P_003 | Test_Auth_P_003_IsDevelopmentModeFallbacks | Positive | auth/auth_test.go | Verify development mode detection |
+| Auth_P_004 | Test_Auth_P_004_OIDCConfigFromEnv | Positive | auth/auth_test.go | Verify OIDC config is read from environment |
+| Auth_P_005 | Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess | Positive | auth/auth_test.go | Verify OIDC provider discovery configures OAuth2 |
 | REQ01_N_001 | Test_REQ01_N_001_CheckWrongPassword | Negative | auth/auth_test.go | Verify wrong password fails check |
 | REQ01_N_002 | Test_REQ01_N_002_ValidateInvalidToken | Negative | auth/auth_test.go | Verify invalid token is rejected |
 | REQ01_N_003 | Test_REQ01_N_003_AuthMiddlewareNoHeader | Negative | auth/auth_test.go | Verify middleware rejects missing header |
@@ -38,11 +49,24 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_011 | Test_REQ01_N_011_RegisterDuplicateUsername | Negative | handlers/handlers_test.go | Verify registration fails for duplicate username |
 | REQ01_N_012 | Test_REQ01_N_012_LoginInvalidJSON | Negative | handlers/handlers_test.go | Verify login fails with invalid JSON |
 | REQ01_N_013 | Test_REQ01_N_013_RegisterInvalidJSON | Negative | handlers/handlers_test.go | Verify registration fails with invalid JSON |
+| REQ01_N_014 | Test_REQ01_N_014_OIDCLoginNotConfigured | Negative | handlers/handlers_test.go | Verify OIDC login fails when disabled |
+| REQ01_N_015 | Test_REQ01_N_015_OIDCCallbackInvalidState | Negative | handlers/handlers_test.go | Verify OIDC callback rejects invalid state |
+| REQ01_N_016 | Test_REQ01_N_016_OIDCCallbackMissingCode | Negative | handlers/handlers_test.go | Verify OIDC callback requires an auth code |
+| REQ01_N_017 | Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed | Negative | handlers/handlers_test.go | Verify OIDC callback handles token exchange failures |
+| REQ01_N_018 | Test_REQ01_N_018_OIDCCallbackMissingIDToken | Negative | handlers/handlers_test.go | Verify OIDC callback requires an ID token |
+| REQ01_N_019 | Test_REQ01_N_019_OIDCCallbackInvalidIDToken | Negative | handlers/handlers_test.go | Verify OIDC callback verifies ID tokens |
+| REQ01_N_020 | Test_REQ01_N_020_OIDCCallbackProviderConfigError | Negative | handlers/handlers_test.go | Verify OIDC callback handles provider config errors |
+| REQ01_N_021 | Test_REQ01_N_021_OIDCCallbackInvalidClaims | Negative | handlers/handlers_test.go | Verify OIDC callback handles invalid claims |
+| Auth_N_001 | Test_Auth_N_001_ConfigureJWTSecretProductionMissing | Negative | auth/auth_test.go | Verify JWT secret is required outside development |
+| Auth_N_002 | Test_Auth_N_002_OIDCConfigOAuth2ConfigUnconfigured | Negative | auth/auth_test.go | Verify unconfigured OIDC config returns error |
 | REQ01_E_001 | Test_REQ01_E_001_TokenExpiry | Edge | auth/auth_test.go | Verify expired tokens are rejected |
 | REQ01_E_002 | Test_REQ01_E_002_RegisterDBError | Edge | handlers/handlers_test.go | Verify Register handles DB error on create |
 | REQ01_E_003 | Test_REQ01_E_003_LoginDBError | Edge | handlers/handlers_test.go | Verify Login handles DB error |
 | REQ01_E_004 | Test_REQ01_E_004_RegisterHashPasswordError | Edge | handlers/handlers_test.go | Verify Register handles hash password error |
 | REQ01_E_005 | Test_REQ01_E_005_LoginGenerateTokenError | Edge | handlers/handlers_test.go | Verify Login handles token generation error |
+| REQ01_E_006 | Test_REQ01_E_006_OIDCCallbackGenerateTokenError | Edge | handlers/handlers_test.go | Verify OIDC callback handles app token generation errors |
+| REQ01_E_007 | Test_REQ01_E_007_UpsertOIDCUserDBError | Edge | handlers/handlers_test.go | Verify OIDC upsert handles DB errors |
+| REQ01_E_008 | Test_REQ01_E_008_AttachOIDCIdentityDBError | Edge | handlers/handlers_test.go | Verify OIDC attach handles DB errors |
 
 ### REQ02: Create TODOs
 
@@ -96,8 +120,18 @@ This document provides traceability from software requirements to test cases, en
 | DB_P_001 | Test_DB_P_001_InitDBSuccess | Positive | db/db_test.go | Verify database initialization works |
 | DB_P_002 | Test_DB_P_002_GetDBReturnsInstance | Positive | db/db_test.go | Verify GetDB returns the database instance |
 | DB_P_003 | Test_DB_P_003_SetDB | Positive | db/db_test.go | Verify SetDB sets the database instance |
+| DB_P_004 | Test_DB_P_004_ConfigFromEnv | Positive | db/db_test.go | Verify database config is read from environment |
+| DB_P_005 | Test_DB_P_005_PostgresDSN | Positive | db/db_test.go | Verify PostgreSQL DSN construction |
+| DB_P_006 | Test_DB_P_006_BuildRDSAuthToken | Positive | db/db_test.go | Verify RDS IAM auth token signing |
+| DB_P_007 | Test_DB_P_007_PostgresOpeners | Positive | db/db_test.go | Verify PostgreSQL openers initialize connections |
+| DB_P_008 | Test_DB_P_008_SmallHelpers | Positive | db/db_test.go | Verify database helper defaults |
+| DB_P_009 | Test_DB_P_009_OpenIAMPostgres | Positive | db/db_test.go | Verify IAM PostgreSQL sql.DB initialization |
 | DB_N_001 | Test_DB_N_001_InitDBInvalidPath | Negative | db/db_test.go | Verify database initialization fails with invalid path |
 | DB_N_002 | Test_DB_N_002_InitDBAutoMigrateError | Negative | db/db_test.go | Verify InitDB handles AutoMigrate error |
+| DB_N_003 | Test_DB_N_003_OpenDBUnsupportedDriver | Negative | db/db_test.go | Verify unsupported drivers fail fast |
+| DB_N_004 | Test_DB_N_004_ValidatePostgresConfig | Negative | db/db_test.go | Verify PostgreSQL config validation |
+| DB_N_005 | Test_DB_N_005_IAMAuthConnectorConnectError | Negative | db/db_test.go | Verify IAM connector connection errors |
+| DB_N_006 | Test_DB_N_006_BuildRDSAuthTokenCredentialError | Negative | db/db_test.go | Verify RDS IAM auth token credential errors |
 | Models_P_001 | Test_Models_P_001_UserTableName | Positive | models/models_test.go | Verify User.TableName returns correct table name |
 | Models_P_002 | Test_Models_P_002_TodoTableName | Positive | models/models_test.go | Verify Todo.TableName returns correct table name |
 | Main_P_001 | Test_Main_P_001_SetupRouter | Positive | main_test.go | Verify router setup works correctly |
@@ -110,17 +144,21 @@ This document provides traceability from software requirements to test cases, en
 | Main_P_006 | Test_Main_P_006_GetDBPathEnv | Positive | main_test.go | Verify DB path from environment |
 | Main_P_007 | Test_Main_P_007_GetPortDefault | Positive | main_test.go | Verify default port |
 | Main_P_008 | Test_Main_P_008_GetPortEnv | Positive | main_test.go | Verify port from environment |
+| Main_P_009 | Test_Main_P_009_RunSuccess | Positive | main_test.go | Verify startup orchestration succeeds |
+| Main_N_001 | Test_Main_N_001_RunAuthConfigError | Negative | main_test.go | Verify startup fails on auth config errors |
+| Main_N_002 | Test_Main_N_002_RunDBError | Negative | main_test.go | Verify startup fails on database errors |
+| Main_N_003 | Test_Main_N_003_RunServerError | Negative | main_test.go | Verify startup fails on server errors |
 
 ## 4. Coverage Summary
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 24 | 6 | 13 | 5 |
+| REQ01 | 48 | 17 | 23 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
-| Infrastructure | 17 | 15 | 2 | 0 |
-| **Total** | **71** | **29** | **29** | **13** |
+| Infrastructure | 31 | 22 | 9 | 0 |
+| **Total** | **109** | **47** | **46** | **16** |
 
 ## 5. Code Coverage
 

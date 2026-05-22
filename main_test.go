@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/ContainerSolutions/todo-app/db"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func init() {
@@ -149,5 +152,79 @@ func Test_Main_P_008_GetPortEnv(t *testing.T) {
 	port := GetPort()
 	if port != "3000" {
 		t.Errorf("Expected port '3000', got '%s'", port)
+	}
+}
+
+// Test_Main_P_009_RunSuccess verifies startup orchestration succeeds.
+func Test_Main_P_009_RunSuccess(t *testing.T) {
+	originalInitDB := initDBFunc
+	originalStartServer := startServerFn
+	defer func() {
+		initDBFunc = originalInitDB
+		startServerFn = originalStartServer
+	}()
+
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("PORT", "9090")
+
+	initDBFunc = func(context.Context, db.Config) error {
+		return nil
+	}
+	startServerFn = func(_ *gin.Engine, addr string) error {
+		if addr != ":9090" {
+			t.Errorf("Expected addr :9090, got %s", addr)
+		}
+		return nil
+	}
+
+	if err := run(t.Context()); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+}
+
+// Test_Main_N_001_RunAuthConfigError verifies startup fails on auth config errors.
+func Test_Main_N_001_RunAuthConfigError(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("JWT_SECRET", "")
+
+	if err := run(t.Context()); err == nil {
+		t.Error("Expected auth config error")
+	}
+}
+
+// Test_Main_N_002_RunDBError verifies startup fails on database errors.
+func Test_Main_N_002_RunDBError(t *testing.T) {
+	originalInitDB := initDBFunc
+	defer func() { initDBFunc = originalInitDB }()
+
+	t.Setenv("APP_ENV", "development")
+	initDBFunc = func(context.Context, db.Config) error {
+		return gorm.ErrInvalidDB
+	}
+
+	if err := run(t.Context()); err == nil {
+		t.Error("Expected database error")
+	}
+}
+
+// Test_Main_N_003_RunServerError verifies startup fails on server errors.
+func Test_Main_N_003_RunServerError(t *testing.T) {
+	originalInitDB := initDBFunc
+	originalStartServer := startServerFn
+	defer func() {
+		initDBFunc = originalInitDB
+		startServerFn = originalStartServer
+	}()
+
+	t.Setenv("APP_ENV", "development")
+	initDBFunc = func(context.Context, db.Config) error {
+		return nil
+	}
+	startServerFn = func(*gin.Engine, string) error {
+		return errors.New("server error")
+	}
+
+	if err := run(t.Context()); err == nil {
+		t.Error("Expected server error")
 	}
 }

@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -238,5 +240,143 @@ func Test_REQ01_N_008_GetUserIDFromContextInvalidType(t *testing.T) {
 	_, ok := GetUserIDFromContext(c)
 	if ok {
 		t.Error("Expected ok to be false when user_id not set")
+	}
+}
+
+func Test_Auth_P_001_ConfigureJWTSecretFromEnv(t *testing.T) {
+	originalSecret := jwtSecret
+	defer func() { jwtSecret = originalSecret }()
+
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("APP_ENV", "production")
+
+	if err := ConfigureJWTSecretFromEnv(); err != nil {
+		t.Fatalf("ConfigureJWTSecretFromEnv returned error: %v", err)
+	}
+	if string(jwtSecret) != "test-secret" {
+		t.Errorf("Expected JWT secret from env, got %q", string(jwtSecret))
+	}
+}
+
+func Test_Auth_P_002_ConfigureJWTSecretDevelopmentFallback(t *testing.T) {
+	originalSecret := jwtSecret
+	defer func() { jwtSecret = originalSecret }()
+
+	t.Setenv("JWT_SECRET", "")
+	t.Setenv("APP_ENV", "development")
+
+	if err := ConfigureJWTSecretFromEnv(); err != nil {
+		t.Fatalf("ConfigureJWTSecretFromEnv returned error: %v", err)
+	}
+	if string(jwtSecret) != devJWTSecret {
+		t.Errorf("Expected development JWT secret, got %q", string(jwtSecret))
+	}
+}
+
+func Test_Auth_N_001_ConfigureJWTSecretProductionMissing(t *testing.T) {
+	originalSecret := jwtSecret
+	defer func() { jwtSecret = originalSecret }()
+
+	t.Setenv("JWT_SECRET", "")
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("ENV", "")
+	t.Setenv("GIN_MODE", "")
+
+	if err := ConfigureJWTSecretFromEnv(); err == nil {
+		t.Error("Expected error when JWT_SECRET is missing outside development")
+	}
+}
+
+func Test_Auth_P_003_IsDevelopmentModeFallbacks(t *testing.T) {
+	t.Setenv("APP_ENV", "")
+	t.Setenv("ENV", "local")
+	t.Setenv("GIN_MODE", "")
+	if !isDevelopmentMode() {
+		t.Error("Expected ENV=local to be development mode")
+	}
+
+	t.Setenv("ENV", "")
+	t.Setenv("GIN_MODE", "release")
+	if isDevelopmentMode() {
+		t.Error("Expected GIN_MODE=release to be non-development mode")
+	}
+
+	t.Setenv("APP_ENV", "")
+	t.Setenv("ENV", "")
+	t.Setenv("GIN_MODE", "")
+	if !isDevelopmentMode() {
+		t.Error("Expected empty env to default to development mode")
+	}
+}
+
+func Test_Auth_P_004_OIDCConfigFromEnv(t *testing.T) {
+	t.Setenv("OIDC_ISSUER_URL", "https://issuer.example.com")
+	t.Setenv("OIDC_CLIENT_ID", "client-id")
+	t.Setenv("OIDC_CLIENT_SECRET", "client-secret")
+	t.Setenv("OIDC_REDIRECT_URL", "https://app.example.com/callback")
+
+	cfg := OIDCConfigFromEnv()
+	if !cfg.Configured() {
+		t.Error("Expected OIDC config to be configured")
+	}
+	if !IsOIDCConfigured() {
+		t.Error("Expected IsOIDCConfigured to return true")
+	}
+}
+
+func Test_Auth_N_002_OIDCConfigOAuth2ConfigUnconfigured(t *testing.T) {
+	_, _, err := (OIDCConfig{}).OAuth2Config(t.Context())
+	if err == nil {
+		t.Error("Expected error for unconfigured OIDC config")
+	}
+}
+
+func Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess(t *testing.T) {
+	issuer := "https://issuer.example.com"
+	oldTransport := http.DefaultTransport
+	http.DefaultTransport = authRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path != "/.well-known/openid-configuration" {
+			return authJSONResponse(http.StatusNotFound, "{}"), nil
+		}
+		return authJSONResponse(http.StatusOK, `{
+			"issuer":"`+issuer+`",
+			"authorization_endpoint":"`+issuer+`/auth",
+			"token_endpoint":"`+issuer+`/token",
+			"jwks_uri":"`+issuer+`/keys",
+			"id_token_signing_alg_values_supported":["RS256"]
+		}`), nil
+	})
+	t.Cleanup(func() {
+		http.DefaultTransport = oldTransport
+	})
+
+	oauthConfig, verifier, err := (OIDCConfig{
+		IssuerURL:    issuer,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		RedirectURL:  "https://app.example.com/callback",
+	}).OAuth2Config(t.Context())
+	if err != nil {
+		t.Fatalf("OAuth2Config returned error: %v", err)
+	}
+	if oauthConfig.Endpoint.AuthURL != issuer+"/auth" || oauthConfig.Endpoint.TokenURL != issuer+"/token" {
+		t.Fatalf("Unexpected OAuth2 endpoints: %+v", oauthConfig.Endpoint)
+	}
+	if verifier == nil {
+		t.Error("Expected ID token verifier")
+	}
+}
+
+type authRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn authRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
+func authJSONResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
 	}
 }

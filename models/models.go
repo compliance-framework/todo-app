@@ -17,8 +17,8 @@ type User struct {
 	Password  string         `gorm:"not null" json:"-"` // Password hash, never exposed in JSON
 	Email     *string        `gorm:"uniqueIndex;size:320" json:"email,omitempty"`
 
-	OIDCIssuer   *string `gorm:"size:512;uniqueIndex:idx_oidc_identity" json:"-"`
-	OIDCSubject  *string `gorm:"size:255;uniqueIndex:idx_oidc_identity" json:"-"`
+	OIDCIssuer   *string `gorm:"column:oidc_issuer;size:512;uniqueIndex:idx_oidc_identity" json:"-"`
+	OIDCSubject  *string `gorm:"column:oidc_subject;size:255;uniqueIndex:idx_oidc_identity" json:"-"`
 	AuthProvider string  `gorm:"not null;size:32;default:password" json:"auth_provider"`
 }
 

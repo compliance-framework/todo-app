@@ -3,17 +3,24 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ContainerSolutions/todo-app/auth"
 	"github.com/ContainerSolutions/todo-app/db"
 	"github.com/ContainerSolutions/todo-app/models"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func setupTestDB(t *testing.T) {
@@ -1104,4 +1111,532 @@ func Test_REQ04_E_004_DeleteTodoNoUserInContext(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
 	}
+}
+
+// Test_REQ01_P_007_AuthConfig verifies auth config reports OIDC availability.
+func Test_REQ01_P_007_AuthConfig(t *testing.T) {
+	t.Setenv("OIDC_ISSUER_URL", "https://issuer.example.com")
+	t.Setenv("OIDC_CLIENT_ID", "client-id")
+	t.Setenv("OIDC_CLIENT_SECRET", "client-secret")
+	t.Setenv("OIDC_REDIRECT_URL", "https://app.example.com/callback")
+
+	router := gin.New()
+	router.GET("/api/auth/config", AuthConfig)
+
+	req := mustNewRequest(t, "GET", "/api/auth/config", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+	}
+	var response AuthConfigResponse
+	mustUnmarshalResponse(t, w.Body.Bytes(), &response)
+	if !response.OIDCConfigured {
+		t.Error("Expected OIDC to be configured")
+	}
+}
+
+// Test_REQ01_N_014_OIDCLoginNotConfigured verifies OIDC login fails when disabled.
+func Test_REQ01_N_014_OIDCLoginNotConfigured(t *testing.T) {
+	t.Setenv("OIDC_ISSUER_URL", "")
+	t.Setenv("OIDC_CLIENT_ID", "")
+	t.Setenv("OIDC_CLIENT_SECRET", "")
+	t.Setenv("OIDC_REDIRECT_URL", "")
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/login", OIDCLogin)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/login", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("Expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+	}
+}
+
+// Test_REQ01_P_011_OIDCLoginRedirect verifies OIDC login redirects to provider.
+func Test_REQ01_P_011_OIDCLoginRedirect(t *testing.T) {
+	issuer := installTestOIDCProvider(t, testOIDCProvider{
+		key: mustGenerateRSAKey(t),
+	})
+	t.Setenv("OIDC_ISSUER_URL", issuer)
+	t.Setenv("OIDC_CLIENT_ID", "client-id")
+	t.Setenv("OIDC_CLIENT_SECRET", "client-secret")
+	t.Setenv("OIDC_REDIRECT_URL", "https://app.example.com/callback")
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/login", OIDCLogin)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/login", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("Expected status %d, got %d", http.StatusFound, w.Code)
+	}
+	if !strings.HasPrefix(w.Header().Get("Location"), issuer+"/auth") {
+		t.Errorf("Expected redirect to provider auth endpoint, got %q", w.Header().Get("Location"))
+	}
+	result := w.Result()
+	defer result.Body.Close()
+	if len(result.Cookies()) == 0 {
+		t.Error("Expected OIDC state cookie")
+	}
+}
+
+// Test_REQ01_N_015_OIDCCallbackInvalidState verifies callback rejects invalid state.
+func Test_REQ01_N_015_OIDCCallbackInvalidState(t *testing.T) {
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=bad", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+// Test_REQ01_N_016_OIDCCallbackMissingCode verifies callback requires an auth code.
+func Test_REQ01_N_016_OIDCCallbackMissingCode(t *testing.T) {
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+	result := w.Result()
+	defer result.Body.Close()
+	if result.Cookies()[0].MaxAge != -1 {
+		t.Error("Expected OIDC state cookie to be cleared")
+	}
+}
+
+// Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed verifies token exchange failures.
+func Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed(t *testing.T) {
+	issuer := installTestOIDCProvider(t, testOIDCProvider{
+		key:         mustGenerateRSAKey(t),
+		tokenStatus: http.StatusInternalServerError,
+		tokenBody:   func() string { return `{"error":"server_error"}` },
+	})
+	setTestOIDCEnv(t, issuer)
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+// Test_REQ01_N_018_OIDCCallbackMissingIDToken verifies callback requires an ID token.
+func Test_REQ01_N_018_OIDCCallbackMissingIDToken(t *testing.T) {
+	issuer := installTestOIDCProvider(t, testOIDCProvider{
+		key:       mustGenerateRSAKey(t),
+		tokenBody: func() string { return `{"access_token":"access","token_type":"Bearer"}` },
+	})
+	setTestOIDCEnv(t, issuer)
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+// Test_REQ01_N_019_OIDCCallbackInvalidIDToken verifies callback verifies ID tokens.
+func Test_REQ01_N_019_OIDCCallbackInvalidIDToken(t *testing.T) {
+	issuer := installTestOIDCProvider(t, testOIDCProvider{
+		key:       mustGenerateRSAKey(t),
+		tokenBody: func() string { return `{"access_token":"access","token_type":"Bearer","id_token":"invalid"}` },
+	})
+	setTestOIDCEnv(t, issuer)
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+// Test_REQ01_P_012_OIDCCallbackSuccess verifies callback creates user and returns app JWT.
+func Test_REQ01_P_012_OIDCCallbackSuccess(t *testing.T) {
+	setupTestDB(t)
+	key := mustGenerateRSAKey(t)
+	issuer := installTestOIDCProvider(t, testOIDCProvider{
+		key: key,
+		tokenBody: func() string {
+			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
+				mustSignIDToken(t, key, "https://issuer.example.com", "client-id", "subject-success", "success@example.com") + `"}`
+		},
+	})
+	setTestOIDCEnv(t, issuer)
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status %d, got %d with body %s", http.StatusOK, w.Code, w.Body.String())
+	}
+	var response LoginResponse
+	mustUnmarshalResponse(t, w.Body.Bytes(), &response)
+	if response.Token == "" || response.User.Username != "success@example.com" {
+		t.Fatalf("Unexpected OIDC login response: %+v", response)
+	}
+}
+
+// Test_REQ01_N_020_OIDCCallbackProviderConfigError verifies provider config errors.
+func Test_REQ01_N_020_OIDCCallbackProviderConfigError(t *testing.T) {
+	t.Setenv("OIDC_ISSUER_URL", "://bad issuer")
+	t.Setenv("OIDC_CLIENT_ID", "client-id")
+	t.Setenv("OIDC_CLIENT_SECRET", "client-secret")
+	t.Setenv("OIDC_REDIRECT_URL", "https://app.example.com/callback")
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("Expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+	}
+}
+
+// Test_REQ01_N_021_OIDCCallbackInvalidClaims verifies claim decoding errors.
+func Test_REQ01_N_021_OIDCCallbackInvalidClaims(t *testing.T) {
+	setupTestDB(t)
+	key := mustGenerateRSAKey(t)
+	issuer := installTestOIDCProvider(t, testOIDCProvider{
+		key: key,
+		tokenBody: func() string {
+			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
+				mustSignIDTokenClaims(t, key, jwt.MapClaims{
+					"iss":   "https://issuer.example.com",
+					"aud":   "client-id",
+					"sub":   "subject-invalid-claims",
+					"email": 123,
+					"exp":   time.Now().Add(time.Hour).Unix(),
+					"iat":   time.Now().Unix(),
+				}) + `"}`
+		},
+	})
+	setTestOIDCEnv(t, issuer)
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+// Test_REQ01_E_006_OIDCCallbackGenerateTokenError verifies app token generation errors.
+func Test_REQ01_E_006_OIDCCallbackGenerateTokenError(t *testing.T) {
+	setupTestDB(t)
+	originalGenerateToken := auth.GenerateTokenFunc
+	auth.GenerateTokenFunc = func(uint, string) (string, error) {
+		return "", errors.New("token error")
+	}
+	defer func() { auth.GenerateTokenFunc = originalGenerateToken }()
+
+	key := mustGenerateRSAKey(t)
+	issuer := installTestOIDCProvider(t, testOIDCProvider{
+		key: key,
+		tokenBody: func() string {
+			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
+				mustSignIDToken(t, key, "https://issuer.example.com", "client-id", "subject-token-error", "token-error@example.com") + `"}`
+		},
+	})
+	setTestOIDCEnv(t, issuer)
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+// Test_REQ01_P_008_UpsertOIDCUserCreateAndFind verifies OIDC users are created and reused.
+func Test_REQ01_P_008_UpsertOIDCUserCreateAndFind(t *testing.T) {
+	setupTestDB(t)
+
+	claims := auth.OIDCClaims{
+		Subject: "subject-1",
+		Email:   "oidc@example.com",
+	}
+
+	user, err := upsertOIDCUser("https://issuer.example.com", claims)
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error: %v", err)
+	}
+	if user.ID == 0 || user.Username != claims.Email || user.Email == nil || *user.Email != claims.Email {
+		t.Fatalf("Unexpected OIDC user: %+v", user)
+	}
+
+	sameUser, err := upsertOIDCUser("https://issuer.example.com", claims)
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error on existing user: %v", err)
+	}
+	if sameUser.ID != user.ID {
+		t.Errorf("Expected existing user ID %d, got %d", user.ID, sameUser.ID)
+	}
+}
+
+// Test_REQ01_P_009_UpsertOIDCUserAttachByEmail verifies OIDC identity attaches by email.
+func Test_REQ01_P_009_UpsertOIDCUserAttachByEmail(t *testing.T) {
+	setupTestDB(t)
+	existing := createTestUser(t, "existing@example.com", "password123")
+
+	user, err := upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{
+		Subject: "subject-2",
+		Email:   "existing@example.com",
+	})
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error: %v", err)
+	}
+	if user.ID != existing.ID || user.OIDCIssuer == nil || user.OIDCSubject == nil {
+		t.Fatalf("Expected existing user to receive OIDC identity, got %+v", user)
+	}
+}
+
+// Test_REQ01_P_010_OIDCUtilities verifies OIDC helper behavior.
+func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
+	if oidcUsername(auth.OIDCClaims{Email: "user@example.com", Subject: "subject"}) != "user@example.com" {
+		t.Error("Expected email username")
+	}
+	hashedUsername := oidcUsername(auth.OIDCClaims{Subject: "subject"})
+	if !strings.HasPrefix(hashedUsername, "oidc-") {
+		t.Errorf("Expected hashed OIDC username, got %q", hashedUsername)
+	}
+
+	state, err := randomState()
+	if err != nil {
+		t.Fatalf("randomState returned error: %v", err)
+	}
+	if state == "" {
+		t.Error("Expected random state")
+	}
+	originalReader := randomReader
+	t.Cleanup(func() { randomReader = originalReader })
+	randomReader = errorReader{}
+	if _, err := randomState(); err == nil {
+		t.Error("Expected randomState error")
+	}
+
+	t.Setenv("OIDC_COOKIE_SECURE", "")
+	if !oidcCookieSecure() {
+		t.Error("Expected OIDC cookie to be secure by default")
+	}
+	t.Setenv("OIDC_COOKIE_SECURE", "false")
+	if oidcCookieSecure() {
+		t.Error("Expected OIDC cookie secure override to be false")
+	}
+	t.Setenv("OIDC_COOKIE_SECURE", "invalid")
+	if !oidcCookieSecure() {
+		t.Error("Expected invalid OIDC cookie secure override to fall back to true")
+	}
+
+	if stringPointerOrNil("") != nil {
+		t.Error("Expected nil pointer for empty string")
+	}
+	if got := stringPointerOrNil("value"); got == nil || *got != "value" {
+		t.Error("Expected pointer for non-empty string")
+	}
+}
+
+// Test_REQ01_E_007_UpsertOIDCUserDBError verifies OIDC upsert handles DB errors.
+func Test_REQ01_E_007_UpsertOIDCUserDBError(t *testing.T) {
+	setupTestDB(t)
+	sqlDB, err := db.GetDB().DB()
+	if err != nil {
+		t.Fatalf("DB returned error: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+
+	_, err = upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{Subject: "subject"})
+	if err == nil {
+		t.Error("Expected DB error")
+	}
+}
+
+// Test_REQ01_E_008_AttachOIDCIdentityDBError verifies OIDC attach handles DB errors.
+func Test_REQ01_E_008_AttachOIDCIdentityDBError(t *testing.T) {
+	setupTestDB(t)
+	user := createTestUser(t, "attach@example.com", "password123")
+	sqlDB, err := db.GetDB().DB()
+	if err != nil {
+		t.Fatalf("DB returned error: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+
+	_, err = attachOIDCIdentity(user, "https://issuer.example.com", auth.OIDCClaims{Subject: "subject"})
+	if err == nil {
+		t.Error("Expected DB error")
+	}
+}
+
+type errorReader struct{}
+
+func (errorReader) Read([]byte) (int, error) {
+	return 0, errors.New("random error")
+}
+
+func setTestOIDCEnv(t *testing.T, issuer string) {
+	t.Helper()
+	t.Setenv("OIDC_ISSUER_URL", issuer)
+	t.Setenv("OIDC_CLIENT_ID", "client-id")
+	t.Setenv("OIDC_CLIENT_SECRET", "client-secret")
+	t.Setenv("OIDC_REDIRECT_URL", "https://app.example.com/callback")
+}
+
+type testOIDCProvider struct {
+	key         *rsa.PrivateKey
+	tokenStatus int
+	tokenBody   func() string
+}
+
+func installTestOIDCProvider(t *testing.T, provider testOIDCProvider) string {
+	t.Helper()
+	issuer := "https://issuer.example.com"
+	oldTransport := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		status := http.StatusOK
+		body := ""
+		switch req.URL.Path {
+		case "/.well-known/openid-configuration":
+			body = `{
+				"issuer":"` + issuer + `",
+				"authorization_endpoint":"` + issuer + `/auth",
+				"token_endpoint":"` + issuer + `/token",
+				"jwks_uri":"` + issuer + `/keys",
+				"id_token_signing_alg_values_supported":["RS256"]
+			}`
+		case "/token":
+			status = provider.tokenStatus
+			if status == 0 {
+				status = http.StatusOK
+			}
+			if provider.tokenBody == nil {
+				body = `{"access_token":"access","token_type":"Bearer"}`
+			} else {
+				body = provider.tokenBody()
+			}
+		case "/keys":
+			body = `{"keys":[` + jwkForKey(provider.key) + `]}`
+		default:
+			status = http.StatusNotFound
+			body = `{}`
+		}
+		return jsonResponse(status, body), nil
+	})
+	t.Cleanup(func() {
+		http.DefaultTransport = oldTransport
+	})
+	return issuer
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
+func jsonResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
+
+func mustGenerateRSAKey(t *testing.T) *rsa.PrivateKey {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	return key
+}
+
+func mustSignIDToken(t *testing.T, key *rsa.PrivateKey, issuer, audience, subject, email string) string {
+	t.Helper()
+	return mustSignIDTokenClaims(t, key, jwt.MapClaims{
+		"iss":            issuer,
+		"aud":            audience,
+		"sub":            subject,
+		"email":          email,
+		"email_verified": true,
+		"exp":            time.Now().Add(time.Hour).Unix(),
+		"iat":            time.Now().Unix(),
+	})
+}
+
+func mustSignIDTokenClaims(t *testing.T, key *rsa.PrivateKey, claims jwt.MapClaims) string {
+	t.Helper()
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = "test-key"
+	signed, err := token.SignedString(key)
+	if err != nil {
+		t.Fatalf("SignedString: %v", err)
+	}
+	return signed
+}
+
+func jwkForKey(key *rsa.PrivateKey) string {
+	return `{
+		"kty":"RSA",
+		"use":"sig",
+		"kid":"test-key",
+		"alg":"RS256",
+		"n":"` + base64.RawURLEncoding.EncodeToString(key.N.Bytes()) + `",
+		"e":"` + base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes()) + `"
+	}`
 }
