@@ -35,6 +35,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_P_013 | Test_REQ01_P_013_UpsertOIDCUserDoesNotAttachUnverifiedEmail | Positive | handlers/handlers_test.go | Verify unverified OIDC emails do not attach to existing users |
 | REQ01_P_014 | Test_REQ01_P_014_AttachOIDCIdentityRefusesRelink | Positive | handlers/handlers_test.go | Verify linked OIDC accounts cannot be re-linked to another identity |
 | REQ01_P_014B | Test_REQ01_P_014B_AttachOIDCIdentityRejectsStaleConcurrentRelink | Positive | handlers/handlers_test.go | Verify stale OIDC account linking updates cannot overwrite an existing link |
+| REQ01_P_014C | Test_REQ01_P_014C_AttachOIDCIdentityNormalizesEmptyAuthProvider | Positive | handlers/handlers_test.go | Verify OIDC linking normalizes legacy empty auth providers |
 | Auth_P_001 | Test_Auth_P_001_ConfigureJWTSecretFromEnv | Positive | auth/auth_test.go | Verify JWT secret is read from environment |
 | Auth_P_002 | Test_Auth_P_002_ConfigureJWTSecretDevelopmentFallback | Positive | auth/auth_test.go | Verify development JWT secret fallback |
 | Auth_P_003 | Test_Auth_P_003_IsDevelopmentModeFallbacks | Positive | auth/auth_test.go | Verify development mode detection |
@@ -163,12 +164,12 @@ This document provides traceability from software requirements to test cases, en
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 53 | 21 | 24 | 8 |
+| REQ01 | 54 | 22 | 24 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
 | Infrastructure | 36 | 26 | 10 | 0 |
-| **Total** | **119** | **55** | **48** | **16** |
+| **Total** | **120** | **56** | **48** | **16** |
 
 ## 5. Code Coverage
 

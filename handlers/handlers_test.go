@@ -1612,6 +1612,14 @@ func Test_REQ01_P_014_AttachOIDCIdentityRefusesRelink(t *testing.T) {
 		t.Fatalf("attachOIDCIdentity returned error: %v", err)
 	}
 
+	sameLinked, err := attachOIDCIdentity(linked, "https://issuer.example.com", auth.OIDCClaims{Subject: "subject-1"})
+	if err != nil {
+		t.Fatalf("attachOIDCIdentity returned error for same identity: %v", err)
+	}
+	if sameLinked.ID != linked.ID {
+		t.Fatalf("Expected same linked user ID %d, got %d", linked.ID, sameLinked.ID)
+	}
+
 	if _, err := attachOIDCIdentity(linked, "https://issuer.example.com", auth.OIDCClaims{Subject: "subject-2"}); err == nil {
 		t.Fatal("Expected relink to a different OIDC subject to fail")
 	}
@@ -1636,6 +1644,14 @@ func Test_REQ01_P_014B_AttachOIDCIdentityRejectsStaleConcurrentRelink(t *testing
 		t.Fatalf("attachOIDCIdentity returned error: %v", err)
 	}
 
+	sameLinked, err := attachOIDCIdentity(staleUser, "https://issuer-one.example.com", auth.OIDCClaims{Subject: "subject-1"})
+	if err != nil {
+		t.Fatalf("Expected stale same-identity attach to return linked user, got %v", err)
+	}
+	if sameLinked.ID != linked.ID {
+		t.Fatalf("Expected stale same-identity attach to return user ID %d, got %d", linked.ID, sameLinked.ID)
+	}
+
 	_, err = attachOIDCIdentity(staleUser, "https://issuer-two.example.com", auth.OIDCClaims{Subject: "subject-2"})
 	if !errors.Is(err, errOIDCUserAlreadyLinked) {
 		t.Fatalf("Expected stale relink to fail with errOIDCUserAlreadyLinked, got %v", err)
@@ -1648,6 +1664,24 @@ func Test_REQ01_P_014B_AttachOIDCIdentityRejectsStaleConcurrentRelink(t *testing
 	if reloaded.OIDCIssuer == nil || *reloaded.OIDCIssuer != "https://issuer-one.example.com" ||
 		reloaded.OIDCSubject == nil || *reloaded.OIDCSubject != "subject-1" {
 		t.Fatalf("Expected stale relink not to overwrite original OIDC identity, got %+v", reloaded)
+	}
+}
+
+// Test_REQ01_P_014C_AttachOIDCIdentityNormalizesEmptyAuthProvider verifies legacy password rows keep password auth.
+func Test_REQ01_P_014C_AttachOIDCIdentityNormalizesEmptyAuthProvider(t *testing.T) {
+	setupTestDB(t)
+	user := createTestUser(t, "legacy-auth-provider@example.com", "password123")
+	if err := db.GetDB().Model(&user).Update("auth_provider", "").Error; err != nil {
+		t.Fatalf("Failed to clear auth provider: %v", err)
+	}
+	user.AuthProvider = ""
+
+	linked, err := attachOIDCIdentity(user, "https://issuer.example.com", auth.OIDCClaims{Subject: "subject-legacy"})
+	if err != nil {
+		t.Fatalf("attachOIDCIdentity returned error: %v", err)
+	}
+	if linked.AuthProvider != "password" {
+		t.Fatalf("Expected empty auth provider to be normalized to password, got %q", linked.AuthProvider)
 	}
 }
 
