@@ -180,6 +180,11 @@ async function saveTodo(todo: Todo) {
     return;
   }
 
+  if (todo.description && !description) {
+    errorMessage.value = "Descriptions cannot be cleared yet.";
+    return;
+  }
+
   try {
     const updatedTodo = await api.updateTodo(todo.id, {
       title,
