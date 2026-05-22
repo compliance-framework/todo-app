@@ -25,10 +25,10 @@ var (
 // SetupRouter creates and configures the Gin router with all routes
 func SetupRouter() *gin.Engine {
 	r := gin.New()
-	r.Use(gin.Recovery())
 
 	// Request audit logging and CORS middleware
 	r.Use(AuditLogMiddleware())
+	r.Use(gin.Recovery())
 	r.Use(CORSMiddleware())
 
 	// Health check

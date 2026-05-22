@@ -66,7 +66,7 @@ func mustNewRequest(t *testing.T, method, url string, body io.Reader) *http.Requ
 
 func mustNewOIDCRequest(t *testing.T, client *http.Client, method, url string, body io.Reader) *http.Request {
 	t.Helper()
-	ctx := oidc.ClientContext(context.Background(), client)
+	ctx := oidc.ClientContext(t.Context(), client)
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {

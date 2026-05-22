@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/ContainerSolutions/todo-app/db"
@@ -74,6 +77,32 @@ func Test_Main_P_002B_AuthConfig(t *testing.T) {
 	}
 	if response.OIDCConfigured {
 		t.Errorf("Expected OIDC disabled config, got %s", w.Body.String())
+	}
+}
+
+// Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic verifies panic responses are audited.
+func Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
+	var logs bytes.Buffer
+	originalOutput := log.Writer()
+	log.SetOutput(&logs)
+	defer log.SetOutput(originalOutput)
+
+	router := SetupRouter()
+	router.GET("/panic", func(c *gin.Context) {
+		panic("test panic")
+	})
+
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/panic", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+	if !strings.Contains(logs.String(), `"method":"GET"`) ||
+		!strings.Contains(logs.String(), `"path":"/panic"`) ||
+		!strings.Contains(logs.String(), `"status":500`) {
+		t.Errorf("Expected recovered panic request to be audit logged, got %q", logs.String())
 	}
 }
 
