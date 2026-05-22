@@ -1,0 +1,26 @@
+lisa-addressed:
+---
+Comment (frontend/src/App.vue:231):
+`setError` overwrites the session-expired message set in `handleUnauthorized()` because API requests call `onUnauthorized()` on 401 and then throw, and the catch blocks call `setError(...)` which replaces `errorMessage`. Consider detecting `ApiError` with `status === 401` here and returning early (or preserving the existing `errorMessage`) so the user consistently sees the session-expired prompt.
+
+---
+Comment (frontend/src/App.vue:275):
+This status/error banner always uses `role="status"`, even when displaying an error. For accessibility, errors should typically use `role="alert"` (assertive) while non-error updates can remain `status`/polite; consider switching the role (and/or `aria-live`) based on whether `errorMessage` is set.
+
+---
+Comment (frontend/src/App.vue:117):
+`createTodo()` trims the title/description but does not validate the trimmed values before sending. A whitespace-only title will become an empty string and will be rejected by the backend (title has `min=1` validation), resulting in a avoidable 400. Consider validating after `trim()` and showing a client-side message instead of making the request.
+
+---
+Comment (frontend/src/App.vue:149):
+`saveTodo()` trims the edited title/description but does not validate the trimmed title before calling the API. If a user enters only whitespace, this will send an empty title and the backend will reject it (`min=1`), leaving the UI in edit mode with an error. Consider validating trimmed inputs and preventing the request when invalid.
+
+---
+Comment (frontend/src/App.vue:93):
+`submitAuth()` sends `authForm.username`/`password` as-is. This allows leading/trailing whitespace (e.g., usernames that visually match but fail backend validation). Consider trimming `username` (and possibly rejecting whitespace-only values) before calling `register`/`login` to match backend expectations (`min=3` for register).
+
+Implementation guidance: In frontend/src/App.vue, update setError(error, fallback) so it does not overwrite the session-expired message created by handleUnauthorized() after a 401. Import/use the existing ApiError class check already present in this file: if error instanceof ApiError && error.status === 401, return early when errorMessage.value is already set, or explicitly preserve the session-expired text. Keep non-401 behavior unchanged so other API errors still show error.message and unknown errors still use fallback.
+Implementation guidance: In frontend/src/App.vue, change the message banner div in the template so accessibility attributes depend on whether errorMessage is set. Bind role dynamically, for example :role="errorMessage ? 'alert' : 'status'", and add/bind aria-live consistently, for example :aria-live="errorMessage ? 'assertive' : 'polite'". Do not create separate duplicated banners; keep the existing conditional rendering and styling behavior.
+Implementation guidance: In frontend/src/App.vue, update createTodo() to trim title and description into local constants before calling api.createTodo(). After clearMessages() and before setting savingTodo.value = true or making the request, validate the trimmed title; if it is empty, set errorMessage.value to a clear client-side message such as "Todo title is required." and return. Use the trimmed constants in the payload so trimming is done once. Avoid toggling savingTodo for the validation failure path.
+Implementation guidance: In frontend/src/App.vue, update saveTodo(todo) to trim editForm.title and editForm.description into local constants before calling api.updateTodo(). After clearMessages() and before the API call, validate that the trimmed title is not empty; if empty, set errorMessage.value to a clear message such as "Todo title is required." and return while leaving editingTodoId/editForm intact so the user can correct the value. Use the trimmed constants in the update payload and keep cancelEditing() only on successful update.
+Implementation guidance: In frontend/src/App.vue, update submitAuth() to normalize and validate the username before register/login calls. After clearMessages() and before calling api.register or api.login, create const username = authForm.username.trim(); if username is empty, set an error message and return after resetting authLoading.value, preferably by moving validation before authLoading.value = true or by setting authLoading.value = false before return. For register mode, also enforce username.length >= 3 client-side to match the backend min=3 and show a clear message. Pass username, not authForm.username, to both api.register() and api.login(). Do not trim the password unless product requirements explicitly say to, because passwords may intentionally contain spaces.
