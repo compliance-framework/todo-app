@@ -1394,6 +1394,39 @@ func Test_REQ01_N_021_OIDCCallbackInvalidClaims(t *testing.T) {
 	}
 }
 
+// Test_REQ01_N_022_OIDCCallbackAccountLinkingConflict verifies semantic linking conflicts return 409.
+func Test_REQ01_N_022_OIDCCallbackAccountLinkingConflict(t *testing.T) {
+	setupTestDB(t)
+	existing := createTestUser(t, "linked-callback@example.com", "password123")
+	if _, err := attachOIDCIdentity(existing, "https://existing-issuer.example.com", auth.OIDCClaims{Subject: "existing-subject"}); err != nil {
+		t.Fatalf("attachOIDCIdentity returned error: %v", err)
+	}
+
+	key := mustGenerateRSAKey(t)
+	var issuer string
+	var oidcClient *http.Client
+	issuer, oidcClient = installTestOIDCProvider(t, testOIDCProvider{
+		key: key,
+		tokenBody: func() string {
+			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
+				mustSignIDToken(t, key, issuer, "client-id", "conflicting-subject", "linked-callback@example.com") + `"}`
+		},
+	})
+	setTestOIDCEnv(t, issuer)
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("Expected status %d, got %d with body %s", http.StatusConflict, w.Code, w.Body.String())
+	}
+}
+
 // Test_REQ01_E_006_OIDCCallbackGenerateTokenError verifies app token generation errors.
 func Test_REQ01_E_006_OIDCCallbackGenerateTokenError(t *testing.T) {
 	setupTestDB(t)

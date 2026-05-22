@@ -45,6 +45,11 @@ type AuthConfigResponse struct {
 
 var randomReader = rand.Reader
 
+var (
+	errOIDCUserAlreadyLinked            = errors.New("user is already linked to a different OIDC identity")
+	errOIDCUsernameMatchNotPasswordUser = errors.New("username match is not an unlinked password user")
+)
+
 // Register handles user registration
 // REQ01: Users should be able to LOGIN (registration is prerequisite)
 func Register(c *gin.Context) {
@@ -204,6 +209,10 @@ func OIDCCallback(c *gin.Context) {
 
 	user, err := upsertOIDCUser(oidcConfig.IssuerURL, claims)
 	if err != nil {
+		if errors.Is(err, errOIDCUserAlreadyLinked) || errors.Is(err, errOIDCUsernameMatchNotPasswordUser) {
+			c.JSON(http.StatusConflict, gin.H{"error": "OIDC account linking conflict"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upsert OIDC user"})
 		return
 	}
@@ -247,7 +256,7 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		err = db.GetDB().Where("username = ?", verifiedEmail).First(&user).Error
 		if err == nil {
 			if user.OIDCIssuer != nil || user.OIDCSubject != nil || (user.AuthProvider != "" && user.AuthProvider != "password") {
-				return models.User{}, errors.New("username match is not an unlinked password user")
+				return models.User{}, errOIDCUsernameMatchNotPasswordUser
 			}
 			return attachOIDCIdentity(user, issuer, claims)
 		}
@@ -292,7 +301,7 @@ func findOIDCUser(issuer, subject string, user *models.User) error {
 func attachOIDCIdentity(user models.User, issuer string, claims auth.OIDCClaims) (models.User, error) {
 	if user.OIDCIssuer != nil || user.OIDCSubject != nil {
 		if user.OIDCIssuer == nil || user.OIDCSubject == nil || *user.OIDCIssuer != issuer || *user.OIDCSubject != claims.Subject {
-			return models.User{}, errors.New("user is already linked to a different OIDC identity")
+			return models.User{}, errOIDCUserAlreadyLinked
 		}
 	}
 
