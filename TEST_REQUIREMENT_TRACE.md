@@ -34,6 +34,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_P_012 | Test_REQ01_P_012_OIDCCallbackSuccess | Positive | handlers/handlers_test.go | Verify OIDC callback creates user and returns app JWT |
 | REQ01_P_013 | Test_REQ01_P_013_UpsertOIDCUserDoesNotAttachUnverifiedEmail | Positive | handlers/handlers_test.go | Verify unverified OIDC emails do not attach to existing users |
 | REQ01_P_014 | Test_REQ01_P_014_AttachOIDCIdentityRefusesRelink | Positive | handlers/handlers_test.go | Verify linked OIDC accounts cannot be re-linked to another identity |
+| REQ01_P_014B | Test_REQ01_P_014B_AttachOIDCIdentityRejectsStaleConcurrentRelink | Positive | handlers/handlers_test.go | Verify stale OIDC account linking updates cannot overwrite an existing link |
 | Auth_P_001 | Test_Auth_P_001_ConfigureJWTSecretFromEnv | Positive | auth/auth_test.go | Verify JWT secret is read from environment |
 | Auth_P_002 | Test_Auth_P_002_ConfigureJWTSecretDevelopmentFallback | Positive | auth/auth_test.go | Verify development JWT secret fallback |
 | Auth_P_003 | Test_Auth_P_003_IsDevelopmentModeFallbacks | Positive | auth/auth_test.go | Verify development mode detection |
@@ -147,6 +148,7 @@ This document provides traceability from software requirements to test cases, en
 | Main_P_002C | Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic | Positive | main_test.go | Verify audit log middleware logs recovered panics |
 | Main_P_003 | Test_Main_P_003_CORSMiddlewareDefaultSameOrigin | Positive | main_test.go | Verify CORS defaults to same-origin only |
 | Main_P_003B | Test_Main_P_003B_CORSMiddlewareConfigured | Positive | main_test.go | Verify configured CORS origin is allowed |
+| Main_P_003C | Test_Main_P_003C_CORSMiddlewareWildcardDoesNotVary | Positive | main_test.go | Verify wildcard CORS does not vary by origin |
 | Main_P_004 | Test_Main_P_004_CORSMiddlewareOptions | Positive | main_test.go | Verify OPTIONS request handling |
 | Main_P_005 | Test_Main_P_005_GetDBPathDefault | Positive | main_test.go | Verify default DB path |
 | Main_P_006 | Test_Main_P_006_GetDBPathEnv | Positive | main_test.go | Verify DB path from environment |
@@ -161,12 +163,12 @@ This document provides traceability from software requirements to test cases, en
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 52 | 20 | 24 | 8 |
+| REQ01 | 53 | 21 | 24 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
-| Infrastructure | 35 | 25 | 10 | 0 |
-| **Total** | **117** | **53** | **48** | **16** |
+| Infrastructure | 36 | 26 | 10 | 0 |
+| **Total** | **119** | **55** | **48** | **16** |
 
 ## 5. Code Coverage
 
