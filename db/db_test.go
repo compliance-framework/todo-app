@@ -101,6 +101,8 @@ func Test_DB_P_004_ConfigFromEnv(t *testing.T) {
 	t.Setenv("DB_SSLMODE", "")
 	t.Setenv("DB_SSLROOTCERT", "/tmp/rds.pem")
 	t.Setenv("DB_IAM_AUTH", "false")
+	t.Setenv("DB_MAX_OPEN_CONNS", "12")
+	t.Setenv("DB_MAX_IDLE_CONNS", "4")
 
 	cfg := ConfigFromEnv()
 	if cfg.Driver != "postgres" || cfg.SQLitePath != "/tmp/test.db" || cfg.Host != "db.example.com" {
@@ -111,6 +113,9 @@ func Test_DB_P_004_ConfigFromEnv(t *testing.T) {
 	}
 	if cfg.Region != "us-east-1" || cfg.SSLMode != "verify-full" || cfg.SSLRootCert != "/tmp/rds.pem" || cfg.IAMAuth {
 		t.Fatalf("Unexpected AWS/TLS config: %+v", cfg)
+	}
+	if cfg.MaxOpenConns != 12 || cfg.MaxIdleConns != 4 {
+		t.Fatalf("Unexpected pool config: %+v", cfg)
 	}
 }
 
@@ -142,10 +147,12 @@ func Test_DB_N_004_ValidatePostgresConfig(t *testing.T) {
 	}
 
 	for name, cfg := range map[string]Config{
-		"missing required": {Port: "5432", Region: "us-east-1", SSLMode: "verify-full", IAMAuth: true},
-		"missing region":   {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", SSLMode: "verify-full", IAMAuth: true},
-		"disabled tls":     {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "disable", IAMAuth: true},
-		"invalid port":     {Host: "db.example.com", Port: "bad", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "verify-full", IAMAuth: true},
+		"missing required":  {Port: "5432", Region: "us-east-1", SSLMode: "verify-full", IAMAuth: true},
+		"missing region":    {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", SSLMode: "verify-full", IAMAuth: true},
+		"disabled tls":      {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "disable", IAMAuth: true},
+		"invalid port":      {Host: "db.example.com", Port: "bad", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "verify-full", IAMAuth: true},
+		"negative max open": {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "verify-full", IAMAuth: true, MaxOpenConns: -1},
+		"negative max idle": {Host: "db.example.com", Port: "5432", Name: "todo", User: "app", Region: "us-east-1", SSLMode: "verify-full", IAMAuth: true, MaxIdleConns: -1},
 	} {
 		if err := validatePostgresConfig(cfg); err == nil {
 			t.Errorf("Expected validation error for %s", name)
@@ -266,18 +273,79 @@ func Test_DB_P_009_OpenIAMPostgres(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "secret")
 
 	sqlDB, err := openIAMPostgres(t.Context(), Config{
-		Host:    "db.example.com",
-		Port:    "5432",
-		Name:    "todo",
-		User:    "app",
-		Region:  "us-east-1",
-		SSLMode: "verify-full",
+		Host:         "db.example.com",
+		Port:         "5432",
+		Name:         "todo",
+		User:         "app",
+		Region:       "us-east-1",
+		SSLMode:      "verify-full",
+		MaxOpenConns: 9,
+		MaxIdleConns: 2,
 	})
 	if err != nil {
 		t.Fatalf("openIAMPostgres returned error: %v", err)
 	}
+	if got := sqlDB.Stats().MaxOpenConnections; got != 9 {
+		t.Fatalf("Expected MaxOpenConnections 9, got %d", got)
+	}
 	if err := sqlDB.Close(); err != nil {
 		t.Fatalf("Close returned error: %v", err)
+	}
+}
+
+// Test_DB_P_010_PostgresPoolDefaults verifies bounded pool defaults are applied.
+func Test_DB_P_010_PostgresPoolDefaults(t *testing.T) {
+	database, err := openPostgres(t.Context(), Config{
+		Driver:   "postgres",
+		Host:     "db.example.com",
+		Port:     "5432",
+		Name:     "todo",
+		User:     "app",
+		Password: "password",
+		Region:   "us-east-1",
+		SSLMode:  "verify-full",
+		IAMAuth:  false,
+	})
+	if err != nil {
+		t.Fatalf("openPostgres returned error: %v", err)
+	}
+	sqlDB, err := database.DB()
+	if err != nil {
+		t.Fatalf("database.DB returned error: %v", err)
+	}
+	defer sqlDB.Close()
+
+	if got := sqlDB.Stats().MaxOpenConnections; got != defaultPostgresMaxOpenConns {
+		t.Fatalf("Expected MaxOpenConnections %d, got %d", defaultPostgresMaxOpenConns, got)
+	}
+}
+
+// Test_DB_P_011_PostgresPoolConfigured verifies configured pool sizes are applied.
+func Test_DB_P_011_PostgresPoolConfigured(t *testing.T) {
+	database, err := openPostgres(t.Context(), Config{
+		Driver:       "postgres",
+		Host:         "db.example.com",
+		Port:         "5432",
+		Name:         "todo",
+		User:         "app",
+		Password:     "password",
+		Region:       "us-east-1",
+		SSLMode:      "verify-full",
+		IAMAuth:      false,
+		MaxOpenConns: 7,
+		MaxIdleConns: 3,
+	})
+	if err != nil {
+		t.Fatalf("openPostgres returned error: %v", err)
+	}
+	sqlDB, err := database.DB()
+	if err != nil {
+		t.Fatalf("database.DB returned error: %v", err)
+	}
+	defer sqlDB.Close()
+
+	if got := sqlDB.Stats().MaxOpenConnections; got != 7 {
+		t.Fatalf("Expected MaxOpenConnections 7, got %d", got)
 	}
 }
 

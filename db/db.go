@@ -39,33 +39,42 @@ var AutoMigrateFunc = func(db *gorm.DB) error {
 
 // Config contains database connection settings.
 type Config struct {
-	Driver      string
-	SQLitePath  string
-	Host        string
-	Port        string
-	Name        string
-	User        string
-	Password    string
-	Region      string
-	SSLMode     string
-	SSLRootCert string
-	IAMAuth     bool
+	Driver       string
+	SQLitePath   string
+	Host         string
+	Port         string
+	Name         string
+	User         string
+	Password     string
+	Region       string
+	SSLMode      string
+	SSLRootCert  string
+	IAMAuth      bool
+	MaxOpenConns int
+	MaxIdleConns int
 }
+
+const (
+	defaultPostgresMaxOpenConns = 25
+	defaultPostgresMaxIdleConns = 5
+)
 
 // ConfigFromEnv builds database config from environment variables.
 func ConfigFromEnv() Config {
 	return Config{
-		Driver:      envOrDefault("DB_DRIVER", "sqlite"),
-		SQLitePath:  envOrDefault("DB_PATH", "todo_app.db"),
-		Host:        os.Getenv("DB_HOST"),
-		Port:        envOrDefault("DB_PORT", "5432"),
-		Name:        os.Getenv("DB_NAME"),
-		User:        os.Getenv("DB_USER"),
-		Password:    os.Getenv("DB_PASSWORD"),
-		Region:      firstNonEmpty(os.Getenv("DB_REGION"), os.Getenv("AWS_REGION")),
-		SSLMode:     envOrDefault("DB_SSLMODE", "verify-full"),
-		SSLRootCert: firstNonEmpty(os.Getenv("DB_SSLROOTCERT"), os.Getenv("DB_RDS_CA_CERT_PATH"), defaultRDSCABundlePath()),
-		IAMAuth:     envBoolOrDefault("DB_IAM_AUTH", true),
+		Driver:       envOrDefault("DB_DRIVER", "sqlite"),
+		SQLitePath:   envOrDefault("DB_PATH", "todo_app.db"),
+		Host:         os.Getenv("DB_HOST"),
+		Port:         envOrDefault("DB_PORT", "5432"),
+		Name:         os.Getenv("DB_NAME"),
+		User:         os.Getenv("DB_USER"),
+		Password:     os.Getenv("DB_PASSWORD"),
+		Region:       firstNonEmpty(os.Getenv("DB_REGION"), os.Getenv("AWS_REGION")),
+		SSLMode:      envOrDefault("DB_SSLMODE", "verify-full"),
+		SSLRootCert:  firstNonEmpty(os.Getenv("DB_SSLROOTCERT"), os.Getenv("DB_RDS_CA_CERT_PATH"), defaultRDSCABundlePath()),
+		IAMAuth:      envBoolOrDefault("DB_IAM_AUTH", true),
+		MaxOpenConns: envIntOrDefault("DB_MAX_OPEN_CONNS", defaultPostgresMaxOpenConns),
+		MaxIdleConns: envIntOrDefault("DB_MAX_IDLE_CONNS", defaultPostgresMaxIdleConns),
 	}
 }
 
@@ -127,7 +136,12 @@ func openPostgres(ctx context.Context, cfg Config) (*gorm.DB, error) {
 		return gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{DisableAutomaticPing: true})
 	}
 
-	return gorm.Open(postgres.Open(postgresDSN(cfg, cfg.Password)), &gorm.Config{DisableAutomaticPing: true})
+	sqlDB, err := sql.Open("pgx", postgresDSN(cfg, cfg.Password))
+	if err != nil {
+		return nil, err
+	}
+	configurePostgresPool(sqlDB, cfg)
+	return gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{DisableAutomaticPing: true})
 }
 
 func validatePostgresConfig(cfg Config) error {
@@ -143,6 +157,12 @@ func validatePostgresConfig(cfg Config) error {
 	if _, err := strconv.Atoi(cfg.Port); err != nil {
 		return fmt.Errorf("invalid DB_PORT %q: %w", cfg.Port, err)
 	}
+	if cfg.MaxOpenConns < 0 {
+		return errors.New("DB_MAX_OPEN_CONNS cannot be negative")
+	}
+	if cfg.MaxIdleConns < 0 {
+		return errors.New("DB_MAX_IDLE_CONNS cannot be negative")
+	}
 	return nil
 }
 
@@ -156,10 +176,24 @@ func openIAMPostgres(ctx context.Context, cfg Config) (*sql.DB, error) {
 		config:      cfg,
 		credentials: awsCfg.Credentials,
 	})
-	sqlDB.SetConnMaxLifetime(14 * time.Minute)
-	sqlDB.SetConnMaxIdleTime(time.Minute)
+	configurePostgresPool(sqlDB, cfg)
 
 	return sqlDB, nil
+}
+
+func configurePostgresPool(sqlDB *sql.DB, cfg Config) {
+	maxOpenConns := cfg.MaxOpenConns
+	if maxOpenConns == 0 {
+		maxOpenConns = defaultPostgresMaxOpenConns
+	}
+	maxIdleConns := cfg.MaxIdleConns
+	if maxIdleConns == 0 {
+		maxIdleConns = defaultPostgresMaxIdleConns
+	}
+	sqlDB.SetMaxOpenConns(maxOpenConns)
+	sqlDB.SetMaxIdleConns(maxIdleConns)
+	sqlDB.SetConnMaxLifetime(14 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(time.Minute)
 }
 
 type iamAuthConnector struct {
@@ -267,6 +301,18 @@ func envBoolOrDefault(key string, fallback bool) bool {
 		return fallback
 	}
 	return enabled
+}
+
+func envIntOrDefault(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func firstNonEmpty(values ...string) string {

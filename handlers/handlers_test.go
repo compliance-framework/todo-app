@@ -19,8 +19,10 @@ import (
 	"github.com/ContainerSolutions/todo-app/auth"
 	"github.com/ContainerSolutions/todo-app/db"
 	"github.com/ContainerSolutions/todo-app/models"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/oauth2"
 )
 
 func setupTestDB(t *testing.T) {
@@ -56,6 +58,17 @@ func setupRouter() *gin.Engine {
 func mustNewRequest(t *testing.T, method, url string, body io.Reader) *http.Request {
 	t.Helper()
 	req, err := http.NewRequestWithContext(context.Background(), method, url, body)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	return req
+}
+
+func mustNewOIDCRequest(t *testing.T, client *http.Client, method, url string, body io.Reader) *http.Request {
+	t.Helper()
+	ctx := oidc.ClientContext(context.Background(), client)
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -1167,7 +1180,7 @@ func Test_REQ01_N_014_OIDCLoginNotConfigured(t *testing.T) {
 
 // Test_REQ01_P_011_OIDCLoginRedirect verifies OIDC login redirects to provider.
 func Test_REQ01_P_011_OIDCLoginRedirect(t *testing.T) {
-	issuer := installTestOIDCProvider(t, testOIDCProvider{
+	issuer, oidcClient := installTestOIDCProvider(t, testOIDCProvider{
 		key: mustGenerateRSAKey(t),
 	})
 	t.Setenv("OIDC_ISSUER_URL", issuer)
@@ -1178,7 +1191,7 @@ func Test_REQ01_P_011_OIDCLoginRedirect(t *testing.T) {
 	router := gin.New()
 	router.GET("/api/auth/oidc/login", OIDCLogin)
 
-	req := mustNewRequest(t, "GET", "/api/auth/oidc/login", nil)
+	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/login", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -1231,7 +1244,7 @@ func Test_REQ01_N_016_OIDCCallbackMissingCode(t *testing.T) {
 
 // Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed verifies token exchange failures.
 func Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed(t *testing.T) {
-	issuer := installTestOIDCProvider(t, testOIDCProvider{
+	issuer, oidcClient := installTestOIDCProvider(t, testOIDCProvider{
 		key:         mustGenerateRSAKey(t),
 		tokenStatus: http.StatusInternalServerError,
 		tokenBody:   func() string { return `{"error":"server_error"}` },
@@ -1241,7 +1254,7 @@ func Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed(t *testing.T) {
 	router := gin.New()
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
-	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
 	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1253,7 +1266,7 @@ func Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed(t *testing.T) {
 
 // Test_REQ01_N_018_OIDCCallbackMissingIDToken verifies callback requires an ID token.
 func Test_REQ01_N_018_OIDCCallbackMissingIDToken(t *testing.T) {
-	issuer := installTestOIDCProvider(t, testOIDCProvider{
+	issuer, oidcClient := installTestOIDCProvider(t, testOIDCProvider{
 		key:       mustGenerateRSAKey(t),
 		tokenBody: func() string { return `{"access_token":"access","token_type":"Bearer"}` },
 	})
@@ -1262,7 +1275,7 @@ func Test_REQ01_N_018_OIDCCallbackMissingIDToken(t *testing.T) {
 	router := gin.New()
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
-	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
 	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1274,7 +1287,7 @@ func Test_REQ01_N_018_OIDCCallbackMissingIDToken(t *testing.T) {
 
 // Test_REQ01_N_019_OIDCCallbackInvalidIDToken verifies callback verifies ID tokens.
 func Test_REQ01_N_019_OIDCCallbackInvalidIDToken(t *testing.T) {
-	issuer := installTestOIDCProvider(t, testOIDCProvider{
+	issuer, oidcClient := installTestOIDCProvider(t, testOIDCProvider{
 		key:       mustGenerateRSAKey(t),
 		tokenBody: func() string { return `{"access_token":"access","token_type":"Bearer","id_token":"invalid"}` },
 	})
@@ -1283,7 +1296,7 @@ func Test_REQ01_N_019_OIDCCallbackInvalidIDToken(t *testing.T) {
 	router := gin.New()
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
-	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
 	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1298,7 +1311,8 @@ func Test_REQ01_P_012_OIDCCallbackSuccess(t *testing.T) {
 	setupTestDB(t)
 	key := mustGenerateRSAKey(t)
 	var issuer string
-	issuer = installTestOIDCProvider(t, testOIDCProvider{
+	var oidcClient *http.Client
+	issuer, oidcClient = installTestOIDCProvider(t, testOIDCProvider{
 		key: key,
 		tokenBody: func() string {
 			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
@@ -1310,7 +1324,7 @@ func Test_REQ01_P_012_OIDCCallbackSuccess(t *testing.T) {
 	router := gin.New()
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
-	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
 	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1350,7 +1364,8 @@ func Test_REQ01_N_021_OIDCCallbackInvalidClaims(t *testing.T) {
 	setupTestDB(t)
 	key := mustGenerateRSAKey(t)
 	var issuer string
-	issuer = installTestOIDCProvider(t, testOIDCProvider{
+	var oidcClient *http.Client
+	issuer, oidcClient = installTestOIDCProvider(t, testOIDCProvider{
 		key: key,
 		tokenBody: func() string {
 			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
@@ -1369,7 +1384,7 @@ func Test_REQ01_N_021_OIDCCallbackInvalidClaims(t *testing.T) {
 	router := gin.New()
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
-	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
 	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1390,7 +1405,8 @@ func Test_REQ01_E_006_OIDCCallbackGenerateTokenError(t *testing.T) {
 
 	key := mustGenerateRSAKey(t)
 	var issuer string
-	issuer = installTestOIDCProvider(t, testOIDCProvider{
+	var oidcClient *http.Client
+	issuer, oidcClient = installTestOIDCProvider(t, testOIDCProvider{
 		key: key,
 		tokenBody: func() string {
 			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
@@ -1402,7 +1418,7 @@ func Test_REQ01_E_006_OIDCCallbackGenerateTokenError(t *testing.T) {
 	router := gin.New()
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
 
-	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
 	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "state"})
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1671,11 +1687,10 @@ type testOIDCProvider struct {
 	tokenBody   func() string
 }
 
-func installTestOIDCProvider(t *testing.T, provider testOIDCProvider) string {
+func installTestOIDCProvider(t *testing.T, provider testOIDCProvider) (string, *http.Client) {
 	t.Helper()
 	issuer := "https://issuer.example.com/" + strings.NewReplacer("/", "-", " ", "-").Replace(t.Name())
-	oldTransport := http.DefaultTransport
-	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		status := http.StatusOK
 		body := ""
 		switch {
@@ -1704,11 +1719,8 @@ func installTestOIDCProvider(t *testing.T, provider testOIDCProvider) string {
 			body = `{}`
 		}
 		return jsonResponse(status, body), nil
-	})
-	t.Cleanup(func() {
-		http.DefaultTransport = oldTransport
-	})
-	return issuer
+	})}
+	return issuer, client
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

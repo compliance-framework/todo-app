@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -8,8 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/oauth2"
 )
 
 func resetOIDCProviderCacheForTest() {
@@ -342,8 +345,7 @@ func Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess(t *testing.T) {
 	t.Cleanup(resetOIDCProviderCacheForTest)
 
 	issuer := "https://issuer.example.com"
-	oldTransport := http.DefaultTransport
-	http.DefaultTransport = authRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+	client := &http.Client{Transport: authRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Path != "/.well-known/openid-configuration" {
 			return authJSONResponse(http.StatusNotFound, "{}"), nil
 		}
@@ -354,17 +356,16 @@ func Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess(t *testing.T) {
 			"jwks_uri":"`+issuer+`/keys",
 			"id_token_signing_alg_values_supported":["RS256"]
 		}`), nil
-	})
-	t.Cleanup(func() {
-		http.DefaultTransport = oldTransport
-	})
+	})}
+	ctx := oidc.ClientContext(t.Context(), client)
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
 
 	oauthConfig, verifier, err := (OIDCConfig{
 		IssuerURL:    issuer,
 		ClientID:     "client-id",
 		ClientSecret: "client-secret",
 		RedirectURL:  "https://app.example.com/callback",
-	}).OAuth2Config(t.Context())
+	}).OAuth2Config(ctx)
 	if err != nil {
 		t.Fatalf("OAuth2Config returned error: %v", err)
 	}
