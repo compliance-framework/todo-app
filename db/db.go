@@ -37,6 +37,10 @@ var AutoMigrateFunc = func(db *gorm.DB) error {
 	return db.AutoMigrate(&models.User{}, &models.Todo{})
 }
 
+var openGormPostgres = func(sqlDB *sql.DB) (*gorm.DB, error) {
+	return gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{DisableAutomaticPing: true})
+}
+
 // Config contains database connection settings.
 type Config struct {
 	Driver       string
@@ -95,6 +99,7 @@ func InitDBWithConfig(ctx context.Context, cfg Config) error {
 
 	// Auto-migrate the schema
 	if err := AutoMigrateFunc(database); err != nil {
+		closeGormDB(database)
 		return err
 	}
 
@@ -133,7 +138,12 @@ func openPostgres(ctx context.Context, cfg Config) (*gorm.DB, error) {
 		if err != nil {
 			return nil, err
 		}
-		return gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{DisableAutomaticPing: true})
+		database, err := openGormPostgres(sqlDB)
+		if err != nil {
+			_ = sqlDB.Close()
+			return nil, err
+		}
+		return database, nil
 	}
 
 	sqlDB, err := sql.Open("pgx", postgresDSN(cfg, cfg.Password))
@@ -141,7 +151,20 @@ func openPostgres(ctx context.Context, cfg Config) (*gorm.DB, error) {
 		return nil, err
 	}
 	configurePostgresPool(sqlDB, cfg)
-	return gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{DisableAutomaticPing: true})
+	database, err := openGormPostgres(sqlDB)
+	if err != nil {
+		_ = sqlDB.Close()
+		return nil, err
+	}
+	return database, nil
+}
+
+func closeGormDB(database *gorm.DB) {
+	sqlDB, err := database.DB()
+	if err != nil {
+		return
+	}
+	_ = sqlDB.Close()
 }
 
 func validatePostgresConfig(cfg Config) error {

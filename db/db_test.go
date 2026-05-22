@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -74,9 +75,16 @@ func Test_DB_P_003_SetDB(t *testing.T) {
 
 // Test_DB_N_002_InitDBAutoMigrateError verifies InitDB handles AutoMigrate error
 func Test_DB_N_002_InitDBAutoMigrateError(t *testing.T) {
+	var sqlDB *sql.DB
+
 	// Mock AutoMigrateFunc to return an error
 	originalFunc := AutoMigrateFunc
 	AutoMigrateFunc = func(db *gorm.DB) error {
+		var err error
+		sqlDB, err = db.DB()
+		if err != nil {
+			t.Fatalf("db.DB returned error: %v", err)
+		}
 		return gorm.ErrInvalidDB
 	}
 	defer func() { AutoMigrateFunc = originalFunc }()
@@ -84,6 +92,12 @@ func Test_DB_N_002_InitDBAutoMigrateError(t *testing.T) {
 	err := InitDB(":memory:")
 	if err == nil {
 		t.Error("Expected error for AutoMigrate failure")
+	}
+	if sqlDB == nil {
+		t.Fatal("Expected AutoMigrateFunc to receive a database")
+	}
+	if err := sqlDB.PingContext(t.Context()); err == nil {
+		t.Error("Expected database to be closed after AutoMigrate failure")
 	}
 }
 
@@ -346,6 +360,52 @@ func Test_DB_P_011_PostgresPoolConfigured(t *testing.T) {
 
 	if got := sqlDB.Stats().MaxOpenConnections; got != 7 {
 		t.Fatalf("Expected MaxOpenConnections 7, got %d", got)
+	}
+}
+
+// Test_DB_N_007_OpenPostgresClosesSQLDBOnGormOpenError verifies openPostgres
+// closes the sql.DB it created when GORM initialization fails.
+func Test_DB_N_007_OpenPostgresClosesSQLDBOnGormOpenError(t *testing.T) {
+	openErr := errors.New("gorm open failed")
+	var opened []*sql.DB
+
+	originalOpenGormPostgres := openGormPostgres
+	openGormPostgres = func(sqlDB *sql.DB) (*gorm.DB, error) {
+		opened = append(opened, sqlDB)
+		return nil, openErr
+	}
+	defer func() { openGormPostgres = originalOpenGormPostgres }()
+
+	passwordCfg := Config{
+		Driver:   "postgres",
+		Host:     "db.example.com",
+		Port:     "5432",
+		Name:     "todo",
+		User:     "app",
+		Password: "password",
+		Region:   "us-east-1",
+		SSLMode:  "verify-full",
+		IAMAuth:  false,
+	}
+	if _, err := openPostgres(t.Context(), passwordCfg); !errors.Is(err, openErr) {
+		t.Fatalf("Expected password openPostgres error %v, got %v", openErr, err)
+	}
+
+	t.Setenv("AWS_ACCESS_KEY_ID", "AKIDEXAMPLE")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "secret")
+	iamCfg := passwordCfg
+	iamCfg.IAMAuth = true
+	if _, err := openPostgres(t.Context(), iamCfg); !errors.Is(err, openErr) {
+		t.Fatalf("Expected IAM openPostgres error %v, got %v", openErr, err)
+	}
+
+	if len(opened) != 2 {
+		t.Fatalf("Expected two sql.DB handles, got %d", len(opened))
+	}
+	for i, sqlDB := range opened {
+		if err := sqlDB.PingContext(t.Context()); err == nil {
+			t.Fatalf("Expected sql.DB handle %d to be closed", i)
+		}
 	}
 }
 
