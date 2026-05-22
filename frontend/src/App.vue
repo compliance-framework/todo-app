@@ -29,8 +29,9 @@ const USER_KEY = "todo-app-user";
 
 const oidcLoginUrl = import.meta.env.VITE_OIDC_LOGIN_URL ?? "";
 
-const token = ref<string | null>(localStorage.getItem(TOKEN_KEY));
-const currentUser = ref<User | null>(readStoredUser());
+const storedSession = readStoredSession();
+const token = ref<string | null>(storedSession?.token ?? null);
+const currentUser = ref<User | null>(storedSession?.user ?? null);
 const authMode = ref<"login" | "register">("login");
 const todos = ref<Todo[]>([]);
 const loadingTodos = ref(false);
@@ -62,6 +63,7 @@ const api = createApiClient({
 
 const completedCount = computed(() => todos.value.filter((todo) => todo.completed).length);
 const openCount = computed(() => todos.value.length - completedCount.value);
+const isAuthenticated = computed(() => Boolean(token.value && currentUser.value));
 
 onMounted(() => {
   void loadTodos();
@@ -118,9 +120,7 @@ async function submitAuth() {
 }
 
 async function createTodo() {
-  if (!currentUser.value) {
-    authMode.value = "login";
-    errorMessage.value = "Sign in to create todos.";
+  if (!requireAuthentication("Sign in to create todos.")) {
     return;
   }
 
@@ -166,6 +166,10 @@ function cancelEditing() {
 }
 
 async function saveTodo(todo: Todo) {
+  if (!requireAuthentication("Sign in to update todos.")) {
+    return;
+  }
+
   clearMessages();
 
   const title = editForm.title.trim();
@@ -190,6 +194,10 @@ async function saveTodo(todo: Todo) {
 }
 
 async function toggleTodo(todo: Todo) {
+  if (!requireAuthentication("Sign in to update todos.")) {
+    return;
+  }
+
   clearMessages();
 
   try {
@@ -203,6 +211,10 @@ async function toggleTodo(todo: Todo) {
 }
 
 async function deleteTodo(todo: Todo) {
+  if (!requireAuthentication("Sign in to delete todos.")) {
+    return;
+  }
+
   clearMessages();
 
   try {
@@ -219,11 +231,21 @@ function openOidcLogin() {
 }
 
 function isOwner(todo: Todo) {
-  return currentUser.value?.id === todo.user_id;
+  return isAuthenticated.value && currentUser.value?.id === todo.user_id;
 }
 
 function ownerName(todo: Todo) {
   return todo.user?.username ?? `User ${todo.user_id}`;
+}
+
+function requireAuthentication(message: string) {
+  if (isAuthenticated.value) {
+    return true;
+  }
+
+  authMode.value = "login";
+  errorMessage.value = message;
+  return false;
 }
 
 function replaceTodo(updatedTodo: Todo) {
@@ -252,6 +274,10 @@ function handleUnauthorized() {
 function clearSession() {
   token.value = null;
   currentUser.value = null;
+  clearStoredSession();
+}
+
+function clearStoredSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
@@ -269,16 +295,22 @@ function setError(error: unknown, fallback: string) {
   errorMessage.value = error instanceof ApiError ? error.message : fallback;
 }
 
-function readStoredUser() {
+function readStoredSession() {
+  const storedToken = localStorage.getItem(TOKEN_KEY);
   const rawUser = localStorage.getItem(USER_KEY);
-  if (!rawUser) {
+
+  if (!storedToken || !rawUser) {
+    clearStoredSession();
     return null;
   }
 
   try {
-    return JSON.parse(rawUser) as User;
+    return {
+      token: storedToken,
+      user: JSON.parse(rawUser) as User,
+    };
   } catch {
-    localStorage.removeItem(USER_KEY);
+    clearStoredSession();
     return null;
   }
 }
@@ -318,7 +350,7 @@ function readStoredUser() {
       <div class="grid gap-6 lg:grid-cols-[320px_1fr]">
         <aside class="flex flex-col gap-6">
           <Card class="p-5">
-            <template v-if="currentUser">
+            <template v-if="isAuthenticated && currentUser">
               <div class="flex items-start justify-between gap-4">
                 <div>
                   <p class="text-sm text-muted-foreground">Signed in as</p>
@@ -383,7 +415,7 @@ function readStoredUser() {
                   v-model="todoForm.title"
                   required
                   :maxlength="255"
-                  :disabled="!currentUser || savingTodo"
+                  :disabled="!isAuthenticated || savingTodo"
                 />
               </div>
               <div class="space-y-2">
@@ -392,10 +424,10 @@ function readStoredUser() {
                   id="todo-description"
                   v-model="todoForm.description"
                   :maxlength="1000"
-                  :disabled="!currentUser || savingTodo"
+                  :disabled="!isAuthenticated || savingTodo"
                 />
               </div>
-              <Button class="w-full" type="submit" :disabled="!currentUser || savingTodo">
+              <Button class="w-full" type="submit" :disabled="!isAuthenticated || savingTodo">
                 <Plus class="mr-2 h-4 w-4" />
                 {{ savingTodo ? "Creating..." : "Create todo" }}
               </Button>
