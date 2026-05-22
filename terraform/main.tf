@@ -242,6 +242,21 @@ resource "aws_s3_bucket" "alb_logs" {
   bucket_prefix = "${local.name}-alb-logs-"
 }
 
+resource "aws_s3_bucket_ownership_controls" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+resource "aws_s3_bucket_acl" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+  acl    = "private"
+
+  depends_on = [aws_s3_bucket_ownership_controls.alb_logs]
+}
+
 resource "aws_s3_bucket_public_access_block" "alb_logs" {
   bucket = aws_s3_bucket.alb_logs.id
 
@@ -316,6 +331,8 @@ resource "aws_s3_bucket_policy" "alb_logs" {
       }
     ]
   })
+
+  depends_on = [aws_s3_bucket_acl.alb_logs]
 }
 
 resource "aws_lb" "app" {
@@ -468,6 +485,7 @@ resource "aws_launch_template" "app" {
 
   network_interfaces {
     associate_public_ip_address = false
+    device_index                = 0
     security_groups             = [aws_security_group.app.id]
   }
 

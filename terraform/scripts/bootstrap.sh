@@ -74,7 +74,7 @@ install_cosign() {
   cosign_file="$work_dir/cosign"
 
   log "installing cosign ${COSIGN_VERSION}"
-  curl --fail --location --silent --show-error "$url" --output "$cosign_file"
+  curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 120 "$url" --output "$cosign_file"
   printf '%s  %s\n' "$checksum" "$cosign_file" | sha256sum --check --status
   install -o root -g root -m 0755 "$cosign_file" /usr/local/bin/cosign
   rm -rf "$work_dir"
@@ -117,8 +117,8 @@ download_and_verify() {
   local base_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}"
 
   log "downloading release ${tag}"
-  curl --fail --location --silent --show-error "${base_url}/${RELEASE_ARTIFACT_NAME}" --output "$artifact"
-  curl --fail --location --silent --show-error "${base_url}/${RELEASE_SIGNATURE_BUNDLE_NAME}" --output "$bundle"
+  curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 120 "${base_url}/${RELEASE_ARTIFACT_NAME}" --output "$artifact"
+  curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 120 "${base_url}/${RELEASE_SIGNATURE_BUNDLE_NAME}" --output "$bundle"
 
   log "verifying sigstore signature for ${RELEASE_ARTIFACT_NAME}"
   cosign verify-blob \
