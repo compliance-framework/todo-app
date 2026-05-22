@@ -69,12 +69,12 @@ install_cosign() {
   url="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-${arch}"
   work_dir="$(mktemp -d)"
   cosign_file="$work_dir/cosign"
-  trap 'rm -rf "$work_dir"; trap - RETURN' RETURN
 
   log "installing cosign ${COSIGN_VERSION}"
   curl --fail --location --silent --show-error "$url" --output "$cosign_file"
   printf '%s  %s\n' "$checksum" "$cosign_file" | sha256sum --check --status
   install -o root -g root -m 0755 "$cosign_file" /usr/local/bin/cosign
+  rm -rf "$work_dir"
 }
 
 ensure_user() {
@@ -171,7 +171,6 @@ install_release() {
   local release_dir
   work_dir="$(mktemp -d)"
   release_dir="$APP_HOME/releases/$tag"
-  trap 'rm -rf "$work_dir"; trap - RETURN' RETURN
 
   download_and_verify "$tag" "$work_dir"
 
@@ -179,6 +178,7 @@ install_release() {
   install -o root -g root -m 0755 "$work_dir/$RELEASE_ARTIFACT_NAME" "$release_dir/todo-app"
   ln -sfn "$release_dir/todo-app" "$APP_HOME/bin/todo-app"
   printf '%s\n' "$tag" >"$APP_HOME/current-release"
+  rm -rf "$work_dir"
 }
 
 main() {
