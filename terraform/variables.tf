@@ -76,7 +76,7 @@ variable "app_port" {
 }
 
 variable "release_tag" {
-  description = "Fallback release tag to install when the SSM release tag parameter is unavailable."
+  description = "Desired todo-app release tag written to SSM Parameter Store and used as a fallback when the SSM release tag parameter cannot be read."
   type        = string
   default     = "v0.1.0"
 }
