@@ -1,0 +1,5 @@
+lisa-addressed:
+---
+Comment (frontend/package.json:5):
+This PR introduces a new Node/Vite frontend (and therefore a `node_modules/` directory), but the repo root `.gitignore` currently does not ignore `node_modules`. Add an ignore rule (e.g., `node_modules/` and/or `frontend/node_modules/`) to prevent accidentally committing installed dependencies.
+Implementation guidance: In the repo root .gitignore, add a Node dependency ignore rule so installed frontend packages cannot be committed. Add node_modules/ under the existing dependency directories section near vendor/. A root-level node_modules/ pattern is sufficient because .gitignore directory patterns match node_modules directories at any depth, including frontend/node_modules/. Do not change package.json or lockfile contents for this review item.
