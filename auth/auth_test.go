@@ -317,20 +317,26 @@ func Test_Auth_P_003_IsDevelopmentModeFallbacks(t *testing.T) {
 	t.Setenv("APP_ENV", "")
 	t.Setenv("ENV", "")
 	t.Setenv("GIN_MODE", "")
-	if !isDevelopmentMode() {
-		t.Error("Expected empty env to default to development mode")
+	if isDevelopmentMode() {
+		t.Error("Expected empty env to be non-development mode")
 	}
 }
 
 func Test_Auth_P_004_OIDCConfigFromEnv(t *testing.T) {
-	t.Setenv("OIDC_ISSUER_URL", "https://issuer.example.com")
-	t.Setenv("OIDC_CLIENT_ID", "client-id")
-	t.Setenv("OIDC_CLIENT_SECRET", "client-secret")
-	t.Setenv("OIDC_REDIRECT_URL", "https://app.example.com/callback")
+	t.Setenv("OIDC_ISSUER_URL", " https://issuer.example.com ")
+	t.Setenv("OIDC_CLIENT_ID", " client-id ")
+	t.Setenv("OIDC_CLIENT_SECRET", " client-secret ")
+	t.Setenv("OIDC_REDIRECT_URL", " https://app.example.com/callback ")
 
 	cfg := OIDCConfigFromEnv()
 	if !cfg.Configured() {
 		t.Error("Expected OIDC config to be configured")
+	}
+	if cfg.IssuerURL != "https://issuer.example.com" ||
+		cfg.ClientID != "client-id" ||
+		cfg.ClientSecret != "client-secret" ||
+		cfg.RedirectURL != "https://app.example.com/callback" {
+		t.Fatalf("Expected OIDC config values to be trimmed, got %+v", cfg)
 	}
 	if !IsOIDCConfigured() {
 		t.Error("Expected IsOIDCConfigured to return true")

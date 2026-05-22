@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -56,10 +57,10 @@ var oidcProviderCache = struct {
 // OIDCConfigFromEnv reads OIDC settings from environment variables.
 func OIDCConfigFromEnv() OIDCConfig {
 	return OIDCConfig{
-		IssuerURL:    os.Getenv("OIDC_ISSUER_URL"),
-		ClientID:     os.Getenv("OIDC_CLIENT_ID"),
-		ClientSecret: os.Getenv("OIDC_CLIENT_SECRET"),
-		RedirectURL:  os.Getenv("OIDC_REDIRECT_URL"),
+		IssuerURL:    strings.TrimSpace(os.Getenv("OIDC_ISSUER_URL")),
+		ClientID:     strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID")),
+		ClientSecret: strings.TrimSpace(os.Getenv("OIDC_CLIENT_SECRET")),
+		RedirectURL:  strings.TrimSpace(os.Getenv("OIDC_REDIRECT_URL")),
 	}
 }
 

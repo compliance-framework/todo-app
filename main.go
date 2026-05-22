@@ -101,22 +101,13 @@ func AuditLogMiddleware() gin.HandlerFunc {
 			log.Printf("failed to marshal audit log: %v", err)
 			return
 		}
-		log.Println(string(data))
+		fmt.Println(string(data))
 	}
 }
 
 // HealthCheck handles the health check endpoint
 func HealthCheck(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "healthy"})
-}
-
-// GetDBPath returns the database path from environment or default
-func GetDBPath() string {
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		dbPath = "todo_app.db"
-	}
-	return dbPath
 }
 
 // GetAllowedOrigin returns the configured CORS allowed origin.

@@ -1,11 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -82,10 +81,16 @@ func Test_Main_P_002B_AuthConfig(t *testing.T) {
 
 // Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic verifies panic responses are audited.
 func Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
-	var logs bytes.Buffer
-	originalOutput := log.Writer()
-	log.SetOutput(&logs)
-	defer log.SetOutput(originalOutput)
+	originalStdout := os.Stdout
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to capture stdout: %v", err)
+	}
+	os.Stdout = stdoutWriter
+	defer func() {
+		os.Stdout = originalStdout
+		stdoutReader.Close()
+	}()
 
 	router := SetupRouter()
 	router.GET("/panic", func(c *gin.Context) {
@@ -99,13 +104,26 @@ func Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
 	}
-	if !strings.Contains(logs.String(), `"method":"GET"`) ||
-		!strings.Contains(logs.String(), `"path":"/panic"`) ||
-		!strings.Contains(logs.String(), `"status":500`) {
-		t.Errorf("Expected recovered panic request to be audit logged, got %q", logs.String())
+	if err := stdoutWriter.Close(); err != nil {
+		t.Fatalf("Failed to close stdout writer: %v", err)
+	}
+	logs, err := io.ReadAll(stdoutReader)
+	if err != nil {
+		t.Fatalf("Failed to read captured stdout: %v", err)
+	}
+	logOutput := string(logs)
+	if !strings.Contains(logOutput, `"method":"GET"`) ||
+		!strings.Contains(logOutput, `"path":"/panic"`) ||
+		!strings.Contains(logOutput, `"status":500`) ||
+		!strings.HasPrefix(logOutput, "{") {
+		t.Errorf("Expected raw JSON audit log on stdout, got %q", logOutput)
 	}
 
-	logs.Reset()
+	stdoutReader, stdoutWriter, err = os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to capture stdout: %v", err)
+	}
+	os.Stdout = stdoutWriter
 	router.GET("/audit-user", func(c *gin.Context) {
 		c.Set("user_id", uint(42))
 		c.Status(http.StatusNoContent)
@@ -117,9 +135,18 @@ func Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
 	if w.Code != http.StatusNoContent {
 		t.Errorf("Expected status %d, got %d", http.StatusNoContent, w.Code)
 	}
-	if !strings.Contains(logs.String(), `"path":"/audit-user"`) ||
-		!strings.Contains(logs.String(), `"user_id":42`) {
-		t.Errorf("Expected user ID to be audit logged, got %q", logs.String())
+	if err := stdoutWriter.Close(); err != nil {
+		t.Fatalf("Failed to close stdout writer: %v", err)
+	}
+	logs, err = io.ReadAll(stdoutReader)
+	if err != nil {
+		t.Fatalf("Failed to read captured stdout: %v", err)
+	}
+	logOutput = string(logs)
+	if !strings.Contains(logOutput, `"path":"/audit-user"`) ||
+		!strings.Contains(logOutput, `"user_id":42`) ||
+		!strings.HasPrefix(logOutput, "{") {
+		t.Errorf("Expected raw JSON audit log with user ID on stdout, got %q", logOutput)
 	}
 }
 
@@ -187,26 +214,6 @@ func Test_Main_P_004_CORSMiddlewareOptions(t *testing.T) {
 
 	if w.Code != http.StatusNoContent {
 		t.Errorf("Expected status %d, got %d", http.StatusNoContent, w.Code)
-	}
-}
-
-// Test_Main_P_005_GetDBPathDefault verifies default DB path
-func Test_Main_P_005_GetDBPathDefault(t *testing.T) {
-	os.Unsetenv("DB_PATH")
-	path := GetDBPath()
-	if path != "todo_app.db" {
-		t.Errorf("Expected default path 'todo_app.db', got '%s'", path)
-	}
-}
-
-// Test_Main_P_006_GetDBPathEnv verifies DB path from environment
-func Test_Main_P_006_GetDBPathEnv(t *testing.T) {
-	os.Setenv("DB_PATH", "/custom/path.db")
-	defer os.Unsetenv("DB_PATH")
-
-	path := GetDBPath()
-	if path != "/custom/path.db" {
-		t.Errorf("Expected path '/custom/path.db', got '%s'", path)
 	}
 }
 

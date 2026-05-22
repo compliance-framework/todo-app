@@ -154,8 +154,6 @@ This document provides traceability from software requirements to test cases, en
 | Main_P_003B | Test_Main_P_003B_CORSMiddlewareConfigured | Positive | main_test.go | Verify configured CORS origin is allowed |
 | Main_P_003C | Test_Main_P_003C_CORSMiddlewareWildcardDoesNotVary | Positive | main_test.go | Verify wildcard CORS does not vary by origin |
 | Main_P_004 | Test_Main_P_004_CORSMiddlewareOptions | Positive | main_test.go | Verify OPTIONS request handling |
-| Main_P_005 | Test_Main_P_005_GetDBPathDefault | Positive | main_test.go | Verify default DB path |
-| Main_P_006 | Test_Main_P_006_GetDBPathEnv | Positive | main_test.go | Verify DB path from environment |
 | Main_P_007 | Test_Main_P_007_GetPortDefault | Positive | main_test.go | Verify default port |
 | Main_P_008 | Test_Main_P_008_GetPortEnv | Positive | main_test.go | Verify port from environment |
 | Main_P_009 | Test_Main_P_009_RunSuccess | Positive | main_test.go | Verify startup orchestration succeeds |

@@ -149,7 +149,7 @@ func isDevelopmentMode() bool {
 	}
 
 	switch env {
-	case "", "debug", "dev", "development", "local", "test":
+	case "debug", "dev", "development", "local", "test":
 		return true
 	default:
 		return false

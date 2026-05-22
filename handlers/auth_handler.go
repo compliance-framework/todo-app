@@ -273,7 +273,8 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 	if err == nil {
 		claims.Email = strings.TrimSpace(claims.Email)
 		if claims.EmailVerified && claims.Email != "" && user.Email == nil {
-			if err := db.GetDB().Model(&models.User{}).Where("id = ?", user.ID).Update("email", claims.Email).Error; err != nil {
+			verifiedEmail := strings.ToLower(claims.Email)
+			if err := db.GetDB().Model(&models.User{}).Where("id = ?", user.ID).Update("email", verifiedEmail).Error; err != nil {
 				return models.User{}, err
 			}
 			if err := db.GetDB().First(&user, user.ID).Error; err != nil {
@@ -289,10 +290,10 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 	claims.Email = strings.TrimSpace(claims.Email)
 	verifiedEmail := ""
 	if claims.EmailVerified {
-		verifiedEmail = claims.Email
+		verifiedEmail = strings.ToLower(claims.Email)
 	}
 	if verifiedEmail != "" {
-		err = db.GetDB().Where("email = ?", verifiedEmail).First(&user).Error
+		err = db.GetDB().Where("LOWER(email) = ?", verifiedEmail).First(&user).Error
 		if err == nil {
 			return attachOIDCIdentity(user, issuer, claims)
 		}
@@ -313,7 +314,9 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 	}
 
 	usernameClaims := claims
-	if !claims.EmailVerified {
+	if claims.EmailVerified {
+		usernameClaims.Email = verifiedEmail
+	} else {
 		usernameClaims.Email = ""
 	}
 	user = models.User{
@@ -362,7 +365,7 @@ func attachOIDCIdentity(user models.User, issuer string, claims auth.OIDCClaims)
 	}
 	claims.Email = strings.TrimSpace(claims.Email)
 	if claims.EmailVerified && claims.Email != "" {
-		updates["email"] = claims.Email
+		updates["email"] = strings.ToLower(claims.Email)
 	}
 
 	result := db.GetDB().

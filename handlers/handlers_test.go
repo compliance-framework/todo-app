@@ -1560,7 +1560,7 @@ func Test_REQ01_P_008A_UpsertOIDCUserBackfillsVerifiedEmail(t *testing.T) {
 		t.Fatalf("Expected initial OIDC user to have no email, got %+v", user.Email)
 	}
 
-	claims.Email = " verified@example.com "
+	claims.Email = " Verified@Example.com "
 	claims.EmailVerified = true
 	updatedUser, err := upsertOIDCUser(issuer, claims)
 	if err != nil {
@@ -1661,6 +1661,31 @@ func Test_REQ01_P_009_UpsertOIDCUserAttachByEmail(t *testing.T) {
 	}
 	if reloadedUsernameOwner.OIDCIssuer != nil || reloadedUsernameOwner.OIDCSubject != nil {
 		t.Fatalf("Expected username owner to remain unlinked, got %+v", reloadedUsernameOwner)
+	}
+}
+
+func Test_REQ01_P_009A_UpsertOIDCUserAttachByEmailCaseInsensitive(t *testing.T) {
+	setupTestDB(t)
+	existing := createTestUser(t, "case-email-owner", "password123")
+	storedEmail := "User@Example.com"
+	existing.Email = &storedEmail
+	if err := db.GetDB().Save(&existing).Error; err != nil {
+		t.Fatalf("Failed to set existing user email: %v", err)
+	}
+
+	user, err := upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{
+		Subject:       "subject-case-email",
+		Email:         " user@example.com ",
+		EmailVerified: true,
+	})
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error: %v", err)
+	}
+	if user.ID != existing.ID || user.OIDCIssuer == nil || user.OIDCSubject == nil {
+		t.Fatalf("Expected existing mixed-case email user to receive OIDC identity, got %+v", user)
+	}
+	if user.Email == nil || *user.Email != "user@example.com" {
+		t.Fatalf("Expected linked email to be normalized to lowercase, got %+v", user.Email)
 	}
 }
 
