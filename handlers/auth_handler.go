@@ -264,7 +264,7 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		usernameClaims.Email = ""
 	}
 	user = models.User{
-		Username:     oidcUsername(usernameClaims),
+		Username:     oidcUsername(issuer, usernameClaims),
 		Password:     "OIDC_LOGIN_ONLY", // #nosec G101 -- non-secret sentinel; OIDC users do not use password login.
 		Email:        stringPointerOrNil(verifiedEmail),
 		OIDCIssuer:   &issuer,
@@ -297,13 +297,13 @@ func attachOIDCIdentity(user models.User, issuer string, claims auth.OIDCClaims)
 	return user, nil
 }
 
-func oidcUsername(claims auth.OIDCClaims) string {
+func oidcUsername(issuer string, claims auth.OIDCClaims) string {
 	email := strings.TrimSpace(claims.Email)
 	if email != "" && len(email) <= 255 {
 		return email
 	}
 
-	hash := sha256.Sum256([]byte(claims.Subject))
+	hash := sha256.Sum256([]byte(issuer + "\x00" + claims.Subject))
 	return "oidc-" + hex.EncodeToString(hash[:])[:32]
 }
 

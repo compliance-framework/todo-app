@@ -85,7 +85,7 @@ go build -o todo-app
 - `DB_SSLMODE` - PostgreSQL TLS mode (default: verify-full; `disable` is rejected)
 - `DB_SSLROOTCERT` / `DB_RDS_CA_CERT_PATH` - RDS CA bundle path
 - `DB_IAM_AUTH` - Enable RDS IAM auth token generation (default: true)
-- `DB_PASSWORD` - PostgreSQL password only when `DB_IAM_AUTH=false`
+- `DB_PASSWORD` - Optional PostgreSQL password for non-IAM connections (`DB_IAM_AUTH=false`)
 - `DB_MAX_OPEN_CONNS` - PostgreSQL max open connections (default: 25)
 - `DB_MAX_IDLE_CONNS` - PostgreSQL max idle connections (default: 5)
 - `OIDC_ISSUER_URL` - OIDC issuer URL

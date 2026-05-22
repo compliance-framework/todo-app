@@ -22,7 +22,7 @@ This document identifies all software configuration items (SCIs) for the Leo App
 | `DB_SSLMODE` | PostgreSQL TLS mode; `disable` is rejected | `verify-full` | No |
 | `DB_SSLROOTCERT` / `DB_RDS_CA_CERT_PATH` | AWS RDS CA bundle path | auto-detected common path | No |
 | `DB_IAM_AUTH` | Generate RDS IAM auth token from AWS default credentials | `true` | No |
-| `DB_PASSWORD` | PostgreSQL password for non-IAM local connections | none | Only when `DB_IAM_AUTH=false` |
+| `DB_PASSWORD` | Optional PostgreSQL password for non-IAM local connections | none | No |
 | `DB_MAX_OPEN_CONNS` | PostgreSQL max open connections | `25` | No |
 | `DB_MAX_IDLE_CONNS` | PostgreSQL max idle connections | `5` | No |
 | `OIDC_ISSUER_URL` | OIDC issuer URL | none | Required for OIDC |

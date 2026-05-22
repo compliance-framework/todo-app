@@ -1561,12 +1561,16 @@ func Test_REQ01_P_014_AttachOIDCIdentityRefusesRelink(t *testing.T) {
 
 // Test_REQ01_P_010_OIDCUtilities verifies OIDC helper behavior.
 func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
-	if oidcUsername(auth.OIDCClaims{Email: "user@example.com", Subject: "subject"}) != "user@example.com" {
+	if oidcUsername("https://issuer.example.com", auth.OIDCClaims{Email: "user@example.com", Subject: "subject"}) != "user@example.com" {
 		t.Error("Expected email username")
 	}
-	hashedUsername := oidcUsername(auth.OIDCClaims{Subject: "subject"})
+	hashedUsername := oidcUsername("https://issuer.example.com", auth.OIDCClaims{Subject: "subject"})
 	if !strings.HasPrefix(hashedUsername, "oidc-") {
 		t.Errorf("Expected hashed OIDC username, got %q", hashedUsername)
+	}
+	otherIssuerUsername := oidcUsername("https://other-issuer.example.com", auth.OIDCClaims{Subject: "subject"})
+	if hashedUsername == otherIssuerUsername {
+		t.Error("Expected same subject from different issuers to produce different usernames")
 	}
 
 	state, err := randomState()
