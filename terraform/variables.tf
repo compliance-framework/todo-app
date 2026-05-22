@@ -13,6 +13,11 @@ variable "environment" {
     condition     = can(regex("^([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$", var.environment))
     error_message = "environment must contain only lowercase letters, numbers, and hyphens, and must not start or end with a hyphen."
   }
+
+  validation {
+    condition     = length(var.environment) <= 15
+    error_message = "environment must be 15 characters or fewer so name_prefix plus environment remains short enough for derived AWS resource names."
+  }
 }
 
 variable "name_prefix" {
@@ -23,6 +28,11 @@ variable "name_prefix" {
   validation {
     condition     = can(regex("^([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$", var.name_prefix))
     error_message = "name_prefix must contain only lowercase letters, numbers, and hyphens, and must not start or end with a hyphen."
+  }
+
+  validation {
+    condition     = length(var.name_prefix) <= 16
+    error_message = "name_prefix must be 16 characters or fewer so name_prefix plus environment remains short enough for derived AWS resource names."
   }
 }
 
