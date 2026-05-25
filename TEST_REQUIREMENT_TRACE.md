@@ -41,6 +41,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_P_014 | Test_REQ01_P_014_AttachOIDCIdentityRefusesRelink | Positive | handlers/handlers_test.go | Verify linked OIDC accounts cannot be re-linked to another identity |
 | REQ01_P_014B | Test_REQ01_P_014B_AttachOIDCIdentityRejectsStaleConcurrentRelink | Positive | handlers/handlers_test.go | Verify stale OIDC account linking updates cannot overwrite an existing link |
 | REQ01_P_014C | Test_REQ01_P_014C_AttachOIDCIdentityNormalizesEmptyAuthProvider | Positive | handlers/handlers_test.go | Verify OIDC linking normalizes legacy empty auth providers |
+| REQ01_P_014D | Test_REQ01_P_014D_AttachOIDCIdentityMapsDuplicateIdentityToConflict | Positive | handlers/handlers_test.go | Verify duplicate OIDC identity updates map to linking conflicts |
 | Auth_P_001 | Test_Auth_P_001_ConfigureJWTSecretFromEnv | Positive | auth/auth_test.go | Verify JWT secret is read from environment |
 | Auth_P_002 | Test_Auth_P_002_ConfigureJWTSecretDevelopmentFallback | Positive | auth/auth_test.go | Verify development JWT secret fallback |
 | Auth_P_003 | Test_Auth_P_003_IsDevelopmentModeFallbacks | Positive | auth/auth_test.go | Verify development mode detection |
@@ -67,6 +68,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_015 | Test_REQ01_N_015_OIDCCallbackInvalidState | Negative | handlers/handlers_test.go | Verify OIDC callback rejects invalid state |
 | REQ01_N_015A | Test_REQ01_N_015A_OIDCCallbackStateMismatchClearsVerifier | Negative | handlers/handlers_test.go | Verify OIDC callback clears stored PKCE verifier on state mismatch |
 | REQ01_N_015B | Test_REQ01_N_015B_OIDCCallbackMissingStoredCodeVerifier | Negative | handlers/handlers_test.go | Verify OIDC callback requires server-side PKCE verifier state |
+| REQ01_N_015C | Test_REQ01_N_015C_OIDCCallbackMalformedStateCookieClearsCookie | Negative | handlers/handlers_test.go | Verify OIDC callback clears malformed state cookies |
 | REQ01_N_016 | Test_REQ01_N_016_OIDCCallbackMissingCode | Negative | handlers/handlers_test.go | Verify OIDC callback requires an auth code |
 | REQ01_N_017 | Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed | Negative | handlers/handlers_test.go | Verify OIDC callback handles token exchange failures |
 | REQ01_N_018 | Test_REQ01_N_018_OIDCCallbackMissingIDToken | Negative | handlers/handlers_test.go | Verify OIDC callback requires an ID token |
