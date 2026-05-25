@@ -1558,6 +1558,11 @@ func Test_REQ01_N_023_OIDCCallbackInvalidNonce(t *testing.T) {
 func Test_REQ01_N_022_OIDCCallbackAccountLinkingConflict(t *testing.T) {
 	setupTestDB(t)
 	existing := createTestUser(t, "linked-callback@example.com", "password123")
+	existingEmail := "linked-callback@example.com"
+	existing.Email = &existingEmail
+	if err := db.GetDB().Save(&existing).Error; err != nil {
+		t.Fatalf("Failed to set existing user email: %v", err)
+	}
 	if _, err := attachOIDCIdentity(existing, "https://existing-issuer.example.com", auth.OIDCClaims{Subject: "existing-subject"}); err != nil {
 		t.Fatalf("attachOIDCIdentity returned error: %v", err)
 	}
@@ -1841,7 +1846,7 @@ func Test_REQ01_P_008E_UpsertOIDCUserRetriesEmailAttachAfterCreateRace(t *testin
 	}
 }
 
-func Test_REQ01_P_008F_UpsertOIDCUserRetriesUsernameAttachAfterCreateRace(t *testing.T) {
+func Test_REQ01_P_008F_UpsertOIDCUserDoesNotAttachUsernameAfterCreateRace(t *testing.T) {
 	setupTestDB(t)
 
 	issuer := "https://issuer.example.com"
@@ -1858,16 +1863,21 @@ func Test_REQ01_P_008F_UpsertOIDCUserRetriesUsernameAttachAfterCreateRace(t *tes
 		return errors.New("UNIQUE constraint failed: users.username")
 	}
 
-	user, err := upsertOIDCUser(issuer, claims)
-	if err != nil {
-		t.Fatalf("upsertOIDCUser returned error after username create race: %v", err)
+	_, err := upsertOIDCUser(issuer, claims)
+	if err == nil || !strings.Contains(err.Error(), "users.username") {
+		t.Fatalf("Expected original username unique error after create race, got %v", err)
 	}
-	if user.Username != claims.Email || user.OIDCIssuer == nil || *user.OIDCIssuer != issuer || user.OIDCSubject == nil || *user.OIDCSubject != claims.Subject {
-		t.Fatalf("Expected competing username user to receive OIDC identity, got %+v", user)
+
+	var usernameOwner models.User
+	if err := db.GetDB().Where("username = ?", claims.Email).First(&usernameOwner).Error; err != nil {
+		t.Fatalf("Failed to reload competing username user: %v", err)
+	}
+	if usernameOwner.OIDCIssuer != nil || usernameOwner.OIDCSubject != nil {
+		t.Fatalf("Expected competing username user to remain unlinked, got %+v", usernameOwner)
 	}
 }
 
-func Test_REQ01_N_008E_UpsertOIDCUserCreateRacePreservesUsernameConflict(t *testing.T) {
+func Test_REQ01_N_008E_UpsertOIDCUserUsernameCreateRaceReturnsCreateError(t *testing.T) {
 	setupTestDB(t)
 
 	claims := auth.OIDCClaims{
@@ -1888,8 +1898,16 @@ func Test_REQ01_N_008E_UpsertOIDCUserCreateRacePreservesUsernameConflict(t *test
 	}
 
 	_, err := upsertOIDCUser("https://issuer.example.com", claims)
-	if !errors.Is(err, errOIDCUsernameMatchNotPasswordUser) {
-		t.Fatalf("Expected username conflict sentinel after create race, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "users.username") {
+		t.Fatalf("Expected original username unique error after create race, got %v", err)
+	}
+
+	var usernameOwner models.User
+	if err := db.GetDB().Where("username = ?", claims.Email).First(&usernameOwner).Error; err != nil {
+		t.Fatalf("Failed to reload competing username user: %v", err)
+	}
+	if usernameOwner.OIDCIssuer != nil || usernameOwner.OIDCSubject != nil {
+		t.Fatalf("Expected competing username user to remain unlinked, got %+v", usernameOwner)
 	}
 }
 
@@ -1897,6 +1915,11 @@ func Test_REQ01_N_008E_UpsertOIDCUserCreateRacePreservesUsernameConflict(t *test
 func Test_REQ01_P_009_UpsertOIDCUserAttachByEmail(t *testing.T) {
 	setupTestDB(t)
 	existing := createTestUser(t, "existing@example.com", "password123")
+	existingEmail := "existing@example.com"
+	existing.Email = &existingEmail
+	if err := db.GetDB().Save(&existing).Error; err != nil {
+		t.Fatalf("Failed to set existing user email: %v", err)
+	}
 
 	user, err := upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{
 		Subject:       "subject-2",
@@ -2005,7 +2028,7 @@ func Test_REQ01_N_027_UpsertOIDCUserRejectsAmbiguousCaseInsensitiveEmail(t *test
 	}
 }
 
-func Test_REQ01_P_009B_UpsertOIDCUserAttachByUsernameCaseInsensitive(t *testing.T) {
+func Test_REQ01_P_009B_UpsertOIDCUserDoesNotAttachByUsernameCaseInsensitive(t *testing.T) {
 	setupTestDB(t)
 	existing := createTestUser(t, "User@Example.com", "password123")
 
@@ -2017,29 +2040,40 @@ func Test_REQ01_P_009B_UpsertOIDCUserAttachByUsernameCaseInsensitive(t *testing.
 	if err != nil {
 		t.Fatalf("upsertOIDCUser returned error: %v", err)
 	}
-	if user.ID != existing.ID || user.OIDCIssuer == nil || user.OIDCSubject == nil {
-		t.Fatalf("Expected existing mixed-case username user to receive OIDC identity, got %+v", user)
+	if user.ID == existing.ID {
+		t.Fatalf("Expected a separate OIDC user instead of linking username owner, got %+v", user)
 	}
-	if user.AuthProvider != "password" {
-		t.Fatalf("Expected linked password user to keep auth_provider password, got %q", user.AuthProvider)
+	if user.OIDCIssuer == nil || *user.OIDCIssuer != "https://issuer.example.com" || user.OIDCSubject == nil || *user.OIDCSubject != "subject-case-username" {
+		t.Fatalf("Expected new OIDC user to receive OIDC identity, got %+v", user)
 	}
 	if user.Email == nil || *user.Email != "user@example.com" {
-		t.Fatalf("Expected linked email to be normalized to lowercase, got %+v", user.Email)
+		t.Fatalf("Expected OIDC user email to be normalized to lowercase, got %+v", user.Email)
+	}
+
+	var reloadedExisting models.User
+	if err := db.GetDB().First(&reloadedExisting, existing.ID).Error; err != nil {
+		t.Fatalf("Failed to reload username owner: %v", err)
+	}
+	if reloadedExisting.OIDCIssuer != nil || reloadedExisting.OIDCSubject != nil {
+		t.Fatalf("Expected username owner to remain unlinked, got %+v", reloadedExisting)
 	}
 }
 
-func Test_REQ01_N_028_UpsertOIDCUserRejectsAmbiguousCaseInsensitiveUsername(t *testing.T) {
+func Test_REQ01_N_028_UpsertOIDCUserIgnoresAmbiguousCaseInsensitiveUsername(t *testing.T) {
 	setupTestDB(t)
 	first := createTestUser(t, "User@Example.com", "password123")
 	second := createTestUser(t, "USER@example.com", "password123")
 
-	_, err := upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{
+	user, err := upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{
 		Subject:       "subject-ambiguous-username",
 		Email:         " user@example.com ",
 		EmailVerified: true,
 	})
-	if !errors.Is(err, errOIDCUsernameMatchAmbiguous) {
-		t.Fatalf("Expected ambiguous username error, got %v", err)
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error: %v", err)
+	}
+	if user.ID == first.ID || user.ID == second.ID || user.OIDCIssuer == nil || user.OIDCSubject == nil {
+		t.Fatalf("Expected a separate OIDC user instead of linking ambiguous username owners, got %+v", user)
 	}
 
 	for _, existing := range []models.User{first, second} {

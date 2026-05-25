@@ -381,21 +381,7 @@ func attachOIDCIdentityByVerifiedEmail(issuer string, claims auth.OIDCClaims, ve
 		return models.User{}, err
 	}
 
-	if len(verifiedEmail) > maxOIDCUsernameLength {
-		return models.User{}, gorm.ErrRecordNotFound
-	}
-
-	err = db.GetDB().Where("username = ?", verifiedEmail).First(&user).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		user, err = findUniqueCaseInsensitiveUsernameUser(verifiedEmail)
-	}
-	if err == nil {
-		if user.OIDCIssuer != nil || user.OIDCSubject != nil || (user.AuthProvider != "" && user.AuthProvider != "password") {
-			return models.User{}, errOIDCUsernameMatchNotPasswordUser
-		}
-		return attachOIDCIdentity(user, issuer, claims)
-	}
-	return models.User{}, err
+	return models.User{}, gorm.ErrRecordNotFound
 }
 
 func findUniqueCaseInsensitiveEmailUser(email string) (models.User, error) {

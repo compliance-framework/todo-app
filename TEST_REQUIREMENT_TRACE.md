@@ -32,10 +32,10 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_P_008C | Test_REQ01_P_008C_UpsertOIDCUserTreatsOverlongEmailAsAbsent | Positive | handlers/handlers_test.go | Verify OIDC upsert ignores overlong verified email claims |
 | REQ01_P_008D | Test_REQ01_P_008D_UpsertOIDCUserStoresLongEmailButDoesNotUseItAsUsername | Positive | handlers/handlers_test.go | Verify OIDC upsert stores long emails without reusing them as usernames |
 | REQ01_P_008E | Test_REQ01_P_008E_UpsertOIDCUserRetriesEmailAttachAfterCreateRace | Positive | handlers/handlers_test.go | Verify OIDC upsert retries email attachment after a create race |
-| REQ01_P_008F | Test_REQ01_P_008F_UpsertOIDCUserRetriesUsernameAttachAfterCreateRace | Positive | handlers/handlers_test.go | Verify OIDC upsert retries username attachment after a create race |
+| REQ01_P_008F | Test_REQ01_P_008F_UpsertOIDCUserDoesNotAttachUsernameAfterCreateRace | Positive | handlers/handlers_test.go | Verify OIDC upsert does not attach by username after a create race |
 | REQ01_P_009 | Test_REQ01_P_009_UpsertOIDCUserAttachByEmail | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by email |
 | REQ01_P_009A | Test_REQ01_P_009A_UpsertOIDCUserAttachByEmailCaseInsensitive | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by email case-insensitively |
-| REQ01_P_009B | Test_REQ01_P_009B_UpsertOIDCUserAttachByUsernameCaseInsensitive | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by username case-insensitively |
+| REQ01_P_009B | Test_REQ01_P_009B_UpsertOIDCUserDoesNotAttachByUsernameCaseInsensitive | Positive | handlers/handlers_test.go | Verify OIDC identity does not attach by username case-insensitively |
 | REQ01_P_010 | Test_REQ01_P_010_OIDCUtilities | Positive | handlers/handlers_test.go | Verify OIDC utility helpers |
 | REQ01_P_011 | Test_REQ01_P_011_OIDCLoginRedirect | Positive | handlers/handlers_test.go | Verify OIDC login redirects to provider |
 | REQ01_P_012 | Test_REQ01_P_012_OIDCCallbackSuccess | Positive | handlers/handlers_test.go | Verify OIDC callback creates user and returns app JWT |
@@ -61,7 +61,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_007 | Test_REQ01_N_007_GetUserIDFromContextMissing | Negative | auth/auth_test.go | Verify missing user ID returns false |
 | REQ01_N_008 | Test_REQ01_N_008_GetUserIDFromContextInvalidType | Negative | auth/auth_test.go | Verify invalid user ID type returns false |
 | REQ01_N_008A | Test_REQ01_N_008A_UpsertOIDCUserBackfillEmailConflict | Negative | handlers/handlers_test.go | Verify OIDC verified email backfill conflicts map to account linking conflicts |
-| REQ01_N_008E | Test_REQ01_N_008E_UpsertOIDCUserCreateRacePreservesUsernameConflict | Negative | handlers/handlers_test.go | Verify OIDC upsert create races preserve username conflict errors |
+| REQ01_N_008E | Test_REQ01_N_008E_UpsertOIDCUserUsernameCreateRaceReturnsCreateError | Negative | handlers/handlers_test.go | Verify OIDC upsert create races return username conflict errors |
 | REQ01_N_009 | Test_REQ01_N_009_LoginInvalidPassword | Negative | handlers/handlers_test.go | Verify login fails with wrong password |
 | REQ01_N_010 | Test_REQ01_N_010_LoginNonexistentUser | Negative | handlers/handlers_test.go | Verify login fails for non-existent user |
 | REQ01_N_011 | Test_REQ01_N_011_RegisterDuplicateUsername | Negative | handlers/handlers_test.go | Verify registration fails for duplicate username |
@@ -82,7 +82,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_022 | Test_REQ01_N_022_OIDCCallbackAccountLinkingConflict | Negative | handlers/handlers_test.go | Verify OIDC callback maps account-linking conflicts to 409 |
 | REQ01_N_023 | Test_REQ01_N_023_OIDCCallbackInvalidNonce | Negative | handlers/handlers_test.go | Verify OIDC callback rejects ID tokens with an invalid nonce |
 | REQ01_N_027 | Test_REQ01_N_027_UpsertOIDCUserRejectsAmbiguousCaseInsensitiveEmail | Negative | handlers/handlers_test.go | Verify ambiguous case-insensitive OIDC email matches are rejected |
-| REQ01_N_028 | Test_REQ01_N_028_UpsertOIDCUserRejectsAmbiguousCaseInsensitiveUsername | Negative | handlers/handlers_test.go | Verify ambiguous case-insensitive OIDC username matches are rejected |
+| REQ01_N_028 | Test_REQ01_N_028_UpsertOIDCUserIgnoresAmbiguousCaseInsensitiveUsername | Negative | handlers/handlers_test.go | Verify ambiguous case-insensitive OIDC username matches are ignored |
 | Auth_N_001 | Test_Auth_N_001_ConfigureJWTSecretProductionMissing | Negative | auth/auth_test.go | Verify JWT secret is required outside development |
 | Auth_N_002 | Test_Auth_N_002_OIDCConfigOAuth2ConfigUnconfigured | Negative | auth/auth_test.go | Verify unconfigured OIDC config returns error |
 | Auth_N_003 | Test_Auth_N_003_CookieSigningSecretProductionMissing | Negative | auth/auth_test.go | Verify cookie signing secrets are required outside development |
