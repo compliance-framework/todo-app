@@ -398,20 +398,6 @@ func findUniqueCaseInsensitiveEmailUser(email string) (models.User, error) {
 	return users[0], nil
 }
 
-func findUniqueCaseInsensitiveUsernameUser(username string) (models.User, error) {
-	var users []models.User
-	if err := db.GetDB().Where("LOWER(username) = ?", username).Order("id").Limit(2).Find(&users).Error; err != nil {
-		return models.User{}, err
-	}
-	if len(users) == 0 {
-		return models.User{}, gorm.ErrRecordNotFound
-	}
-	if len(users) > 1 {
-		return models.User{}, errOIDCUsernameMatchAmbiguous
-	}
-	return users[0], nil
-}
-
 func oidcOnlyPasswordHash() (string, error) {
 	randomPassword := make([]byte, 32)
 	if _, err := rand.Read(randomPassword); err != nil {
