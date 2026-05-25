@@ -14,6 +14,9 @@ cosign_linux_arm64_sha256 = "replace-with-cosign-linux-arm64-sha256"
 # github_repository              = "ContainerSolutions/todo-app"
 # release_artifact_name          = "todo-app-linux-amd64"
 # release_signature_bundle_name  = "todo-app-linux-amd64.bundle"
-# ec2_ami_architecture           = "arm64" # Required for ARM instance types such as t4g.*
+# For ARM instance types such as t4g.*, change all three values together:
+# ec2_ami_architecture           = "arm64"
+# release_artifact_name          = "todo-app-linux-arm64"
+# release_signature_bundle_name  = "todo-app-linux-arm64.bundle"
 # nat_gateway_mode               = "single" # Lower cost, less available than the default "per_az".
 # ticket_tag                     = "BCH-1283"

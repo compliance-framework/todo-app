@@ -95,15 +95,23 @@ ensure_user() {
 }
 
 target_release_tag() {
-  local tag
-  tag="$(aws ssm get-parameter \
+  local output
+  if ! output="$(aws ssm get-parameter \
     --region "$AWS_REGION" \
     --name "$RELEASE_TAG_PARAMETER_NAME" \
     --query 'Parameter.Value' \
-    --output text 2>/dev/null || true)"
+    --output text 2>&1)"; then
+    if printf '%s' "$output" | grep -q 'ParameterNotFound'; then
+      printf '%s' "$FALLBACK_RELEASE_TAG"
+      return 0
+    fi
 
-  if [ -n "$tag" ] && [ "$tag" != "None" ]; then
-    printf '%s' "$tag"
+    log "failed to read SSM parameter ${RELEASE_TAG_PARAMETER_NAME}: $output"
+    exit 1
+  fi
+
+  if [ -n "$output" ] && [ "$output" != "None" ]; then
+    printf '%s' "$output"
   else
     printf '%s' "$FALLBACK_RELEASE_TAG"
   fi

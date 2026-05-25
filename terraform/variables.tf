@@ -13,11 +13,6 @@ variable "environment" {
     condition     = can(regex("^([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$", var.environment))
     error_message = "environment must contain only lowercase letters, numbers, and hyphens, and must not start or end with a hyphen."
   }
-
-  validation {
-    condition     = length("${var.name_prefix}-${var.environment}") <= 32
-    error_message = "name_prefix plus environment must be 32 characters or fewer when combined as name_prefix-environment for derived AWS resource names."
-  }
 }
 
 variable "name_prefix" {
@@ -28,11 +23,6 @@ variable "name_prefix" {
   validation {
     condition     = can(regex("^([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$", var.name_prefix))
     error_message = "name_prefix must contain only lowercase letters, numbers, and hyphens, and must not start or end with a hyphen."
-  }
-
-  validation {
-    condition     = length("${var.name_prefix}-${var.environment}") <= 32
-    error_message = "name_prefix plus environment must be 32 characters or fewer when combined as name_prefix-environment for derived AWS resource names."
   }
 }
 
@@ -71,11 +61,6 @@ variable "public_subnet_cidrs" {
     condition     = alltrue([for cidr in var.public_subnet_cidrs : can(cidrhost(cidr, 0))])
     error_message = "public_subnet_cidrs must contain only valid CIDR blocks."
   }
-
-  validation {
-    condition     = length(var.public_subnet_cidrs) == length(var.private_subnet_cidrs)
-    error_message = "public_subnet_cidrs and private_subnet_cidrs must contain the same number of CIDR blocks."
-  }
 }
 
 variable "private_subnet_cidrs" {
@@ -92,17 +77,17 @@ variable "private_subnet_cidrs" {
     condition     = alltrue([for cidr in var.private_subnet_cidrs : can(cidrhost(cidr, 0))])
     error_message = "private_subnet_cidrs must contain only valid CIDR blocks."
   }
-
-  validation {
-    condition     = length(var.private_subnet_cidrs) == length(var.public_subnet_cidrs)
-    error_message = "private_subnet_cidrs and public_subnet_cidrs must contain the same number of CIDR blocks."
-  }
 }
 
 variable "app_port" {
   description = "Port exposed by the Go backend and allowed from the ALB."
   type        = number
   default     = 8080
+
+  validation {
+    condition     = var.app_port >= 1 && var.app_port <= 65535
+    error_message = "app_port must be between 1 and 65535."
+  }
 }
 
 variable "release_tag" {
@@ -156,11 +141,21 @@ variable "cosign_version" {
 variable "cosign_linux_amd64_sha256" {
   description = "Pinned SHA-256 checksum for the cosign Linux amd64 binary matching cosign_version."
   type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-fA-F]{64}$", var.cosign_linux_amd64_sha256))
+    error_message = "cosign_linux_amd64_sha256 must be a 64-character hexadecimal SHA-256 digest."
+  }
 }
 
 variable "cosign_linux_arm64_sha256" {
   description = "Pinned SHA-256 checksum for the cosign Linux arm64 binary matching cosign_version."
   type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-fA-F]{64}$", var.cosign_linux_arm64_sha256))
+    error_message = "cosign_linux_arm64_sha256 must be a 64-character hexadecimal SHA-256 digest."
+  }
 }
 
 variable "nat_gateway_mode" {

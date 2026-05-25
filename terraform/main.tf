@@ -2,6 +2,9 @@ locals {
   availability_zone_count = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs), length(data.aws_availability_zones.available.names))
   name                    = "${var.name_prefix}-${var.environment}"
   alb_name                = substr(replace(local.name, "_", "-"), 0, 32)
+  target_group_name       = trimsuffix(substr("${replace(local.name, "_", "-")}-app", 0, 32), "-")
+  vpc_flow_log_group_name = "/aws/vpc/${local.name}/flow-logs"
+  vpc_flow_log_group_arn  = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.vpc_flow_log_group_name}"
 
   bootstrap_parameter_arns = [aws_ssm_parameter.release_tag.arn]
 }
@@ -11,6 +14,38 @@ data "aws_availability_zones" "available" {
 }
 
 data "aws_caller_identity" "current" {}
+
+resource "terraform_data" "input_validation" {
+  input = true
+
+  lifecycle {
+    precondition {
+      condition     = length(local.name) <= 32
+      error_message = "name_prefix plus environment must be 32 characters or fewer when combined as name_prefix-environment for derived AWS resource names."
+    }
+
+    precondition {
+      condition     = length(var.public_subnet_cidrs) == length(var.private_subnet_cidrs)
+      error_message = "public_subnet_cidrs and private_subnet_cidrs must contain the same number of CIDR blocks."
+    }
+
+    precondition {
+      condition = (
+        (var.ec2_ami_architecture == "x86_64" && can(regex("linux-amd64", var.release_artifact_name))) ||
+        (var.ec2_ami_architecture == "arm64" && can(regex("linux-arm64", var.release_artifact_name)))
+      )
+      error_message = "release_artifact_name must match ec2_ami_architecture: use a linux-amd64 artifact with x86_64 and a linux-arm64 artifact with arm64."
+    }
+
+    precondition {
+      condition = (
+        (var.ec2_ami_architecture == "x86_64" && can(regex("linux-amd64\\.bundle$", var.release_signature_bundle_name))) ||
+        (var.ec2_ami_architecture == "arm64" && can(regex("linux-arm64\\.bundle$", var.release_signature_bundle_name)))
+      )
+      error_message = "release_signature_bundle_name must match ec2_ami_architecture and end in .bundle: use a linux-amd64 bundle with x86_64 and a linux-arm64 bundle with arm64."
+    }
+  }
+}
 
 data "aws_ami" "amazon_linux" {
   most_recent = true
@@ -51,7 +86,7 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.app.id
   cidr_block              = var.public_subnet_cidrs[count.index]
   availability_zone       = data.aws_availability_zones.available.names[count.index]
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   tags = {
     Name = "${local.name}-public-${count.index + 1}"
@@ -136,8 +171,54 @@ resource "aws_route_table_association" "private" {
 }
 
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
-  name              = "/aws/vpc/${local.name}/flow-logs"
+  name              = local.vpc_flow_log_group_name
+  kms_key_id        = aws_kms_key.vpc_flow_logs.arn
   retention_in_days = 30
+}
+
+resource "aws_kms_key" "vpc_flow_logs" {
+  description         = "KMS key for ${local.name} VPC flow logs"
+  enable_key_rotation = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "EnableAccountKeyAdministration"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowCloudWatchLogsUse"
+        Effect = "Allow"
+        Principal = {
+          Service = "logs.${var.aws_region}.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+        Condition = {
+          ArnEquals = {
+            "kms:EncryptionContext:aws:logs:arn" = local.vpc_flow_log_group_arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_kms_alias" "vpc_flow_logs" {
+  name          = "alias/${local.name}-vpc-flow-logs"
+  target_key_id = aws_kms_key.vpc_flow_logs.key_id
 }
 
 resource "aws_iam_role" "vpc_flow_logs" {
@@ -232,13 +313,13 @@ resource "aws_security_group_rule" "app_ingress_alb" {
   source_security_group_id = aws_security_group.alb.id
 }
 
-resource "aws_security_group_rule" "app_egress_all" {
+resource "aws_security_group_rule" "app_egress_https" {
   type              = "egress"
   description       = "Outbound for release downloads and SSM"
   security_group_id = aws_security_group.app.id
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
 }
 
@@ -340,11 +421,12 @@ resource "aws_s3_bucket_policy" "alb_logs" {
 }
 
 resource "aws_lb" "app" {
-  name               = local.alb_name
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb.id]
-  subnets            = aws_subnet.public[*].id
+  name                       = local.alb_name
+  internal                   = false
+  load_balancer_type         = "application"
+  drop_invalid_header_fields = true
+  security_groups            = [aws_security_group.alb.id]
+  subnets                    = aws_subnet.public[*].id
 
   access_logs {
     bucket  = aws_s3_bucket.alb_logs.id
@@ -356,7 +438,7 @@ resource "aws_lb" "app" {
 }
 
 resource "aws_lb_target_group" "app" {
-  name     = substr("${replace(local.name, "_", "-")}-app", 0, 32)
+  name     = local.target_group_name
   port     = var.app_port
   protocol = "HTTP"
   vpc_id   = aws_vpc.app.id
