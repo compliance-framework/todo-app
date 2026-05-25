@@ -142,6 +142,7 @@ This document provides traceability from software requirements to test cases, en
 | DB_P_002 | Test_DB_P_002_GetDBReturnsInstance | Positive | db/db_test.go | Verify GetDB returns the database instance |
 | DB_P_003 | Test_DB_P_003_SetDB | Positive | db/db_test.go | Verify SetDB sets the database instance |
 | DB_P_004 | Test_DB_P_004_ConfigFromEnv | Positive | db/db_test.go | Verify database config is read from environment |
+| DB_P_004A | Test_DB_P_004A_ConfigFromEnvTrimsWhitespace | Positive | db/db_test.go | Verify database config trims whitespace from environment values |
 | DB_P_004B | Test_DB_P_004B_ConfigFromEnvDoesNotAutoSelectRDSCAWithoutIAM | Positive | db/db_test.go | Verify non-IAM database config does not auto-select the RDS CA bundle |
 | DB_P_004C | Test_DB_P_004C_ConfigFromEnvSkipsRDSCAForSQLite | Positive | db/db_test.go | Verify SQLite database config skips RDS CA bundle selection |
 | DB_P_005 | Test_DB_P_005_PostgresDSN | Positive | db/db_test.go | Verify PostgreSQL DSN construction |
