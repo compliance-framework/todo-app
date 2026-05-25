@@ -60,6 +60,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_006 | Test_REQ01_N_006_AuthMiddlewareMalformedHeader | Negative | auth/auth_test.go | Verify middleware rejects malformed header |
 | REQ01_N_007 | Test_REQ01_N_007_GetUserIDFromContextMissing | Negative | auth/auth_test.go | Verify missing user ID returns false |
 | REQ01_N_008 | Test_REQ01_N_008_GetUserIDFromContextInvalidType | Negative | auth/auth_test.go | Verify invalid user ID type returns false |
+| REQ01_N_008A | Test_REQ01_N_008A_UpsertOIDCUserBackfillEmailConflict | Negative | handlers/handlers_test.go | Verify OIDC verified email backfill conflicts map to account linking conflicts |
 | REQ01_N_008E | Test_REQ01_N_008E_UpsertOIDCUserCreateRacePreservesUsernameConflict | Negative | handlers/handlers_test.go | Verify OIDC upsert create races preserve username conflict errors |
 | REQ01_N_009 | Test_REQ01_N_009_LoginInvalidPassword | Negative | handlers/handlers_test.go | Verify login fails with wrong password |
 | REQ01_N_010 | Test_REQ01_N_010_LoginNonexistentUser | Negative | handlers/handlers_test.go | Verify login fails for non-existent user |
