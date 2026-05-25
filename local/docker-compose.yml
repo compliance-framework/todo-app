@@ -1,0 +1,67 @@
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    environment:
+      POSTGRES_USER: todoapp
+      POSTGRES_PASSWORD: todoapp
+      POSTGRES_DB: todoapp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - postgres_certs:/certs-out
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U todoapp -d todoapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ..
+      dockerfile: local/Dockerfile.backend
+    env_file:
+      - ./.env
+    environment:
+      APP_ENV: development
+      PORT: 8080
+      DB_DRIVER: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: todoapp
+      DB_USER: todoapp
+      DB_PASSWORD: todoapp
+      DB_SSLMODE: verify-ca
+      DB_SSLROOTCERT: /certs/ca.crt
+      DB_IAM_AUTH: "false"
+      CORS_ALLOWED_ORIGIN: "*"
+    volumes:
+      - postgres_certs:/certs:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../local/Dockerfile.frontend
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8080
+      VITE_OIDC_LOGIN_URL: http://localhost:8080/api/auth/oidc/login
+    ports:
+      - "3000:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  postgres_certs:

@@ -32,7 +32,7 @@ const oidcLoginUrl = import.meta.env.VITE_OIDC_LOGIN_URL ?? "";
 const storedSession = readStoredSession();
 const token = ref<string | null>(storedSession?.token ?? null);
 const currentUser = ref<User | null>(storedSession?.user ?? null);
-const authMode = ref<"login" | "register">("login");
+const authMode = ref<"login">("login");
 const todos = ref<Todo[]>([]);
 const loadingTodos = ref(false);
 const authLoading = ref(false);
@@ -66,8 +66,27 @@ const openCount = computed(() => todos.value.length - completedCount.value);
 const isAuthenticated = computed(() => Boolean(token.value && currentUser.value));
 
 onMounted(() => {
+  handleOIDCRedirect();
   void loadTodos();
 });
+
+function handleOIDCRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const oidcToken = params.get("oidc_token");
+  const oidcUser = params.get("oidc_user");
+  if (!oidcToken || !oidcUser) return;
+
+  try {
+    const user = JSON.parse(atob(oidcUser.replace(/-/g, "+").replace(/_/g, "/")));
+    setSession(oidcToken, user);
+    statusMessage.value = "Signed in with provider.";
+  } catch {
+    errorMessage.value = "OIDC sign-in failed: could not read session.";
+  }
+
+  const cleanUrl = window.location.pathname;
+  window.history.replaceState({}, "", cleanUrl);
+}
 
 async function loadTodos() {
   loadingTodos.value = true;
@@ -357,11 +376,11 @@ function readStoredSession() {
           <Card class="p-5">
             <template v-if="isAuthenticated && currentUser">
               <div class="flex items-start justify-between gap-4">
-                <div>
+                <div class="min-w-0 flex-1">
                   <p class="text-sm text-muted-foreground">Signed in as</p>
-                  <p class="mt-1 text-lg font-semibold">{{ currentUser.username }}</p>
+                  <p class="mt-1 break-all text-lg font-semibold">{{ currentUser.username }}</p>
                 </div>
-                <Button variant="outline" size="sm" @click="signOut">
+                <Button class="shrink-0" variant="outline" size="sm" @click="signOut">
                   <LogOut class="mr-2 h-4 w-4" />
                   Sign out
                 </Button>
@@ -369,24 +388,6 @@ function readStoredSession() {
             </template>
 
             <template v-else>
-              <div class="mb-5 flex rounded-md border border-border bg-muted p-1">
-                <button
-                  class="h-9 flex-1 rounded-sm text-sm font-medium transition-colors"
-                  :class="authMode === 'login' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'"
-                  type="button"
-                  @click="authMode = 'login'"
-                >
-                  Login
-                </button>
-                <button
-                  class="h-9 flex-1 rounded-sm text-sm font-medium transition-colors"
-                  :class="authMode === 'register' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'"
-                  type="button"
-                  @click="authMode = 'register'"
-                >
-                  Register
-                </button>
-              </div>
 
               <form class="space-y-4" @submit.prevent="submitAuth">
                 <div class="space-y-2">

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -297,10 +298,22 @@ func OIDCCallback(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, LoginResponse{
-		Token: token,
-		User:  user,
-	})
+	frontendURL := strings.TrimSpace(os.Getenv("OIDC_FRONTEND_URL"))
+	if frontendURL == "" {
+		c.JSON(http.StatusOK, LoginResponse{Token: token, User: user})
+		return
+	}
+
+	userJSON, err := json.Marshal(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode user"})
+		return
+	}
+
+	params := url.Values{}
+	params.Set("oidc_token", token)
+	params.Set("oidc_user", base64.RawURLEncoding.EncodeToString(userJSON))
+	c.Redirect(http.StatusFound, frontendURL+"?"+params.Encode())
 }
 
 func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) {

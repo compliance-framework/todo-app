@@ -1,0 +1,18 @@
+FROM postgres:16-alpine
+
+RUN apk add --no-cache openssl && \
+    mkdir -p /pg-ssl && \
+    openssl req -new -x509 -days 3650 -nodes \
+      -out /pg-ssl/server.crt \
+      -keyout /pg-ssl/server.key \
+      -subj '/CN=postgres' \
+      -addext 'subjectAltName=DNS:postgres,DNS:localhost,IP:127.0.0.1' && \
+    cp /pg-ssl/server.crt /pg-ssl/ca.crt && \
+    chown postgres:postgres /pg-ssl/server.crt /pg-ssl/server.key /pg-ssl/ca.crt && \
+    chmod 600 /pg-ssl/server.key && \
+    chmod 644 /pg-ssl/server.crt /pg-ssl/ca.crt
+
+COPY --chmod=755 postgres-entrypoint.sh /usr/local/bin/postgres-entrypoint.sh
+
+ENTRYPOINT ["postgres-entrypoint.sh"]
+CMD ["postgres"]
