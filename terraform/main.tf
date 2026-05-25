@@ -30,6 +30,11 @@ resource "terraform_data" "input_validation" {
     }
 
     precondition {
+      condition     = length(var.public_subnet_cidrs) <= length(data.aws_availability_zones.available.names)
+      error_message = "The number of public/private subnet CIDR blocks cannot exceed the number of available availability zones in the selected region."
+    }
+
+    precondition {
       condition = (
         (var.ec2_ami_architecture == "x86_64" && can(regex("linux-amd64", var.release_artifact_name))) ||
         (var.ec2_ami_architecture == "arm64" && can(regex("linux-arm64", var.release_artifact_name)))
@@ -321,6 +326,26 @@ resource "aws_security_group_rule" "app_egress_https" {
   to_port           = 443
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
+}
+
+resource "aws_security_group_rule" "app_egress_dns_udp" {
+  type              = "egress"
+  description       = "DNS to the VPC resolver"
+  security_group_id = aws_security_group.app.id
+  from_port         = 53
+  to_port           = 53
+  protocol          = "udp"
+  cidr_blocks       = ["169.254.169.253/32"]
+}
+
+resource "aws_security_group_rule" "app_egress_dns_tcp" {
+  type              = "egress"
+  description       = "DNS to the VPC resolver"
+  security_group_id = aws_security_group.app.id
+  from_port         = 53
+  to_port           = 53
+  protocol          = "tcp"
+  cidr_blocks       = ["169.254.169.253/32"]
 }
 
 resource "aws_s3_bucket" "alb_logs" {
