@@ -1771,6 +1771,88 @@ func Test_REQ01_P_008B_UpsertOIDCUserRetriesAfterCreateRace(t *testing.T) {
 	}
 }
 
+func Test_REQ01_P_008C_UpsertOIDCUserRetriesEmailAttachAfterCreateRace(t *testing.T) {
+	setupTestDB(t)
+
+	issuer := "https://issuer.example.com"
+	claims := auth.OIDCClaims{
+		Subject:       "subject-email-race",
+		Email:         "email-race@example.com",
+		EmailVerified: true,
+	}
+	originalCreateOIDCUser := createOIDCUser
+	t.Cleanup(func() { createOIDCUser = originalCreateOIDCUser })
+
+	createOIDCUser = func(user *models.User) error {
+		competingUser := createTestUser(t, "email-race-owner", "password123")
+		competingUser.Email = user.Email
+		if err := db.GetDB().Save(&competingUser).Error; err != nil {
+			t.Fatalf("Failed to create competing email user: %v", err)
+		}
+		return errors.New("UNIQUE constraint failed: users.email")
+	}
+
+	user, err := upsertOIDCUser(issuer, claims)
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error after email create race: %v", err)
+	}
+	if user.Username != "email-race-owner" || user.OIDCIssuer == nil || *user.OIDCIssuer != issuer || user.OIDCSubject == nil || *user.OIDCSubject != claims.Subject {
+		t.Fatalf("Expected competing email user to receive OIDC identity, got %+v", user)
+	}
+}
+
+func Test_REQ01_P_008D_UpsertOIDCUserRetriesUsernameAttachAfterCreateRace(t *testing.T) {
+	setupTestDB(t)
+
+	issuer := "https://issuer.example.com"
+	claims := auth.OIDCClaims{
+		Subject:       "subject-username-race",
+		Email:         "username-race@example.com",
+		EmailVerified: true,
+	}
+	originalCreateOIDCUser := createOIDCUser
+	t.Cleanup(func() { createOIDCUser = originalCreateOIDCUser })
+
+	createOIDCUser = func(user *models.User) error {
+		createTestUser(t, user.Username, "password123")
+		return errors.New("UNIQUE constraint failed: users.username")
+	}
+
+	user, err := upsertOIDCUser(issuer, claims)
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error after username create race: %v", err)
+	}
+	if user.Username != claims.Email || user.OIDCIssuer == nil || *user.OIDCIssuer != issuer || user.OIDCSubject == nil || *user.OIDCSubject != claims.Subject {
+		t.Fatalf("Expected competing username user to receive OIDC identity, got %+v", user)
+	}
+}
+
+func Test_REQ01_N_008E_UpsertOIDCUserCreateRacePreservesUsernameConflict(t *testing.T) {
+	setupTestDB(t)
+
+	claims := auth.OIDCClaims{
+		Subject:       "subject-username-conflict-race",
+		Email:         "username-conflict-race@example.com",
+		EmailVerified: true,
+	}
+	originalCreateOIDCUser := createOIDCUser
+	t.Cleanup(func() { createOIDCUser = originalCreateOIDCUser })
+
+	createOIDCUser = func(user *models.User) error {
+		competingUser := createTestUser(t, user.Username, "password123")
+		competingUser.AuthProvider = "oidc"
+		if err := db.GetDB().Save(&competingUser).Error; err != nil {
+			t.Fatalf("Failed to create competing non-password user: %v", err)
+		}
+		return errors.New("UNIQUE constraint failed: users.username")
+	}
+
+	_, err := upsertOIDCUser("https://issuer.example.com", claims)
+	if !errors.Is(err, errOIDCUsernameMatchNotPasswordUser) {
+		t.Fatalf("Expected username conflict sentinel after create race, got %v", err)
+	}
+}
+
 // Test_REQ01_P_009_UpsertOIDCUserAttachByEmail verifies OIDC identity attaches by email.
 func Test_REQ01_P_009_UpsertOIDCUserAttachByEmail(t *testing.T) {
 	setupTestDB(t)

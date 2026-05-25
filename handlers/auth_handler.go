@@ -323,33 +323,10 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 	}
 
 	verifiedEmail := verifiedOIDCEmail(claims)
-	if verifiedEmail != "" {
-		err = db.GetDB().Where("email = ?", verifiedEmail).First(&user).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			user, err = findUniqueCaseInsensitiveEmailUser(verifiedEmail)
-		}
-		if err == nil {
-			return attachOIDCIdentity(user, issuer, claims)
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return models.User{}, err
-		}
-
-		if len(verifiedEmail) <= maxOIDCUsernameLength {
-			err = db.GetDB().Where("username = ?", verifiedEmail).First(&user).Error
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				user, err = findUniqueCaseInsensitiveUsernameUser(verifiedEmail)
-			}
-			if err == nil {
-				if user.OIDCIssuer != nil || user.OIDCSubject != nil || (user.AuthProvider != "" && user.AuthProvider != "password") {
-					return models.User{}, errOIDCUsernameMatchNotPasswordUser
-				}
-				return attachOIDCIdentity(user, issuer, claims)
-			}
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return models.User{}, err
-			}
-		}
+	if user, err := attachOIDCIdentityByVerifiedEmail(issuer, claims, verifiedEmail); err == nil {
+		return user, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.User{}, err
 	}
 
 	passwordHash, err := oidcOnlyPasswordHash()
@@ -372,9 +349,50 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		if lookupErr := findOIDCUser(issuer, claims.Subject, &existing); lookupErr == nil {
 			return existing, nil
 		}
+		if isUniqueConstraintError(err) {
+			if linked, lookupErr := attachOIDCIdentityByVerifiedEmail(issuer, claims, verifiedEmail); lookupErr == nil {
+				return linked, nil
+			} else if !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
+				return models.User{}, lookupErr
+			}
+		}
 		return models.User{}, err
 	}
 	return user, nil
+}
+
+func attachOIDCIdentityByVerifiedEmail(issuer string, claims auth.OIDCClaims, verifiedEmail string) (models.User, error) {
+	if verifiedEmail == "" {
+		return models.User{}, gorm.ErrRecordNotFound
+	}
+
+	var user models.User
+	err := db.GetDB().Where("email = ?", verifiedEmail).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		user, err = findUniqueCaseInsensitiveEmailUser(verifiedEmail)
+	}
+	if err == nil {
+		return attachOIDCIdentity(user, issuer, claims)
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.User{}, err
+	}
+
+	if len(verifiedEmail) > maxOIDCUsernameLength {
+		return models.User{}, gorm.ErrRecordNotFound
+	}
+
+	err = db.GetDB().Where("username = ?", verifiedEmail).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		user, err = findUniqueCaseInsensitiveUsernameUser(verifiedEmail)
+	}
+	if err == nil {
+		if user.OIDCIssuer != nil || user.OIDCSubject != nil || (user.AuthProvider != "" && user.AuthProvider != "password") {
+			return models.User{}, errOIDCUsernameMatchNotPasswordUser
+		}
+		return attachOIDCIdentity(user, issuer, claims)
+	}
+	return models.User{}, err
 }
 
 func findUniqueCaseInsensitiveEmailUser(email string) (models.User, error) {
