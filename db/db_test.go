@@ -549,4 +549,12 @@ func Test_DB_P_008_SmallHelpers(t *testing.T) {
 	if defaultRDSCABundlePath() != caPath {
 		t.Error("Expected defaultRDSCABundlePath to find existing CA bundle")
 	}
+	t.Setenv("DB_RDS_CA_CERT_PATH", "")
+	if sslRootCertFromEnv() != caPath {
+		t.Error("Expected sslRootCertFromEnv to fall back to default CA bundle path")
+	}
+	rdsCABundlePaths = []string{filepath.Join(t.TempDir(), "missing.pem")}
+	if defaultRDSCABundlePath() != "" {
+		t.Error("Expected defaultRDSCABundlePath to return empty when no CA bundle exists")
+	}
 }
