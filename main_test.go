@@ -215,6 +215,25 @@ func Test_Main_P_003B_CORSMiddlewareConfigured(t *testing.T) {
 	}
 }
 
+// Test_Main_P_003D_CORSMiddlewareDisallowedOriginVary verifies disallowed origins vary cached responses.
+func Test_Main_P_003D_CORSMiddlewareDisallowedOriginVary(t *testing.T) {
+	t.Setenv("CORS_ALLOWED_ORIGIN", "https://app.example.com")
+	setupTestDB(t)
+	router := SetupRouter()
+
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", "/health", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Error("Expected Access-Control-Allow-Origin header to be empty for disallowed origin")
+	}
+	if w.Header().Get("Vary") != "Origin" {
+		t.Error("Expected Vary: Origin header for disallowed origin with configured CORS")
+	}
+}
+
 // Test_Main_P_003C_CORSMiddlewareWildcardDoesNotVary verifies wildcard CORS avoids unnecessary vary.
 func Test_Main_P_003C_CORSMiddlewareWildcardDoesNotVary(t *testing.T) {
 	t.Setenv("CORS_ALLOWED_ORIGIN", "*")

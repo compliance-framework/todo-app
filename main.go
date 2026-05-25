@@ -65,11 +65,11 @@ func CORSMiddleware() gin.HandlerFunc {
 	allowedOrigin := GetAllowedOrigin()
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
+		if origin != "" && allowedOrigin != "" && allowedOrigin != "*" {
+			c.Writer.Header().Set("Vary", "Origin")
+		}
 		if allowedOrigin != "" && (allowedOrigin == origin || allowedOrigin == "*") {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-			if allowedOrigin != "*" {
-				c.Writer.Header().Set("Vary", "Origin")
-			}
 		}
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
