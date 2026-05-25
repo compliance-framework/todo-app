@@ -1287,6 +1287,45 @@ func Test_REQ01_N_015_OIDCCallbackInvalidState(t *testing.T) {
 	}
 }
 
+// Test_REQ01_N_015A_OIDCCallbackStateMismatchClearsVerifier verifies mismatched states clear stored PKCE verifiers.
+func Test_REQ01_N_015A_OIDCCallbackStateMismatchClearsVerifier(t *testing.T) {
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=other-state", nil)
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+	if _, ok := takeOIDCCodeVerifier("state"); ok {
+		t.Error("Expected mismatched callback to clear stored OIDC code verifier")
+	}
+}
+
+// Test_REQ01_N_015B_OIDCCallbackMissingStoredCodeVerifier verifies callback requires server-side PKCE state.
+func Test_REQ01_N_015B_OIDCCallbackMissingStoredCodeVerifier(t *testing.T) {
+	t.Setenv("APP_ENV", "test")
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	value, err := encodeOIDCLoginState(oidcLoginState{State: "state", Nonce: "nonce"})
+	if err != nil {
+		t.Fatalf("encode OIDC login state: %v", err)
+	}
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: value})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
 // Test_REQ01_N_016_OIDCCallbackMissingCode verifies callback requires an auth code.
 func Test_REQ01_N_016_OIDCCallbackMissingCode(t *testing.T) {
 	router := gin.New()
@@ -2037,6 +2076,14 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 	storeOIDCCodeVerifier("expired-state", "expired-verifier", time.Now().Add(-time.Minute))
 	if _, ok := takeOIDCCodeVerifier("expired-state"); ok {
 		t.Error("Expected expired OIDC code verifier to be rejected")
+	}
+	storeOIDCCodeVerifier("expired-cleanup-state", "expired-verifier", time.Now().Add(-time.Minute))
+	storeOIDCCodeVerifier("active-state", "active-verifier", time.Now().Add(time.Minute))
+	if _, ok := takeOIDCCodeVerifier("expired-cleanup-state"); ok {
+		t.Error("Expected expired OIDC code verifier to be removed during cleanup")
+	}
+	if verifier, ok := takeOIDCCodeVerifier("active-state"); !ok || verifier != "active-verifier" {
+		t.Fatalf("Expected active OIDC code verifier after cleanup, got %q ok=%v", verifier, ok)
 	}
 
 	t.Setenv("OIDC_COOKIE_SECURE", "")
