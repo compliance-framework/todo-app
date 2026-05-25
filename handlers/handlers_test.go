@@ -1264,8 +1264,12 @@ func Test_REQ01_P_011_OIDCLoginRedirect(t *testing.T) {
 	if loginState.State != query.Get("state") || loginState.Nonce != query.Get("nonce") {
 		t.Fatalf("OIDC state cookie does not match redirect parameters: %+v", loginState)
 	}
-	if pkceChallenge(loginState.CodeVerifier) != query.Get("code_challenge") {
-		t.Error("OIDC state cookie code verifier does not match redirect PKCE challenge")
+	codeVerifier, ok := takeOIDCCodeVerifier(loginState.State)
+	if !ok {
+		t.Fatal("Expected OIDC code verifier to be stored server-side")
+	}
+	if pkceChallenge(codeVerifier) != query.Get("code_challenge") {
+		t.Error("Stored OIDC code verifier does not match redirect PKCE challenge")
 	}
 }
 
@@ -1967,9 +1971,8 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 		t.Error("Expected randomState error")
 	}
 	cookieValue, err := encodeOIDCLoginState(oidcLoginState{
-		State:        "state",
-		CodeVerifier: "code-verifier",
-		Nonce:        "nonce",
+		State: "state",
+		Nonce: "nonce",
 	})
 	if err != nil {
 		t.Fatalf("encodeOIDCLoginState returned error: %v", err)
@@ -1978,8 +1981,15 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeOIDCLoginState returned error: %v", err)
 	}
-	if loginState.State != "state" || loginState.CodeVerifier != "code-verifier" || loginState.Nonce != "nonce" {
+	if loginState.State != "state" || loginState.Nonce != "nonce" {
 		t.Fatalf("Unexpected OIDC login state: %+v", loginState)
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(strings.Split(cookieValue, ".")[0])
+	if err != nil {
+		t.Fatalf("Decode OIDC state payload: %v", err)
+	}
+	if strings.Contains(string(payload), "code_verifier") || strings.Contains(string(payload), "code-verifier") {
+		t.Fatalf("OIDC state cookie leaked code verifier: %s", payload)
 	}
 	if _, err := decodeOIDCLoginState(&http.Cookie{Value: "not-base64"}); err == nil {
 		t.Error("Expected invalid signed state cookie format error")
@@ -1994,10 +2004,10 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 		t.Error("Expected tampered OIDC state payload error")
 	}
 	replacement := "A"
-	if cookieValue[len(cookieValue)-1:] == replacement {
+	if parts[1][:1] == replacement {
 		replacement = "B"
 	}
-	tamperedSignature := cookieValue[:len(cookieValue)-1] + replacement
+	tamperedSignature := parts[0] + "." + replacement + parts[1][1:]
 	if _, err := decodeOIDCLoginState(&http.Cookie{Value: tamperedSignature}); err == nil {
 		t.Error("Expected tampered OIDC state signature error")
 	}
@@ -2012,10 +2022,22 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("OIDC_STATE_SECRET", "")
 	t.Setenv("JWT_SECRET", "")
-	if _, err := encodeOIDCLoginState(oidcLoginState{State: "state", CodeVerifier: "code-verifier", Nonce: "nonce"}); err == nil {
+	if _, err := encodeOIDCLoginState(oidcLoginState{State: "state", Nonce: "nonce"}); err == nil {
 		t.Error("Expected missing OIDC state signing secret error outside development")
 	}
 	t.Setenv("APP_ENV", "test")
+
+	storeOIDCCodeVerifier("stored-state", "stored-verifier", time.Now().Add(time.Minute))
+	if verifier, ok := takeOIDCCodeVerifier("stored-state"); !ok || verifier != "stored-verifier" {
+		t.Fatalf("Expected stored OIDC code verifier, got %q ok=%v", verifier, ok)
+	}
+	if _, ok := takeOIDCCodeVerifier("stored-state"); ok {
+		t.Error("Expected OIDC code verifier to be removed after read")
+	}
+	storeOIDCCodeVerifier("expired-state", "expired-verifier", time.Now().Add(-time.Minute))
+	if _, ok := takeOIDCCodeVerifier("expired-state"); ok {
+		t.Error("Expected expired OIDC code verifier to be rejected")
+	}
 
 	t.Setenv("OIDC_COOKIE_SECURE", "")
 	if !oidcCookieSecure() {
@@ -2128,13 +2150,13 @@ func testOIDCStateCookie(t *testing.T, state, nonce string) *http.Cookie {
 	t.Helper()
 	t.Setenv("APP_ENV", "test")
 	value, err := encodeOIDCLoginState(oidcLoginState{
-		State:        state,
-		CodeVerifier: "test-code-verifier",
-		Nonce:        nonce,
+		State: state,
+		Nonce: nonce,
 	})
 	if err != nil {
 		t.Fatalf("encode OIDC login state: %v", err)
 	}
+	storeOIDCCodeVerifier(state, "test-code-verifier", time.Now().Add(oidcLoginStateTTL))
 	return &http.Cookie{Name: "oidc_state", Value: value}
 }
 

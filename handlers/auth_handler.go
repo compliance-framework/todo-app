@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ContainerSolutions/todo-app/auth"
@@ -48,12 +49,25 @@ type AuthConfigResponse struct {
 }
 
 type oidcLoginState struct {
-	State        string `json:"state"`
-	CodeVerifier string `json:"code_verifier"`
-	Nonce        string `json:"nonce"`
+	State string `json:"state"`
+	Nonce string `json:"nonce"`
 }
 
 var randomReader = rand.Reader
+
+const oidcLoginStateTTL = 10 * time.Minute
+
+type oidcCodeVerifierEntry struct {
+	verifier  string
+	expiresAt time.Time
+}
+
+var oidcCodeVerifierStore = struct {
+	sync.Mutex
+	entries map[string]oidcCodeVerifierEntry
+}{
+	entries: make(map[string]oidcCodeVerifierEntry),
+}
 
 var (
 	errOIDCUserAlreadyLinked            = errors.New("user is already linked to a different OIDC identity")
@@ -166,21 +180,21 @@ func OIDCLogin(c *gin.Context) {
 		return
 	}
 	cookieValue, err := encodeOIDCLoginState(oidcLoginState{
-		State:        state,
-		CodeVerifier: codeVerifier,
-		Nonce:        nonce,
+		State: state,
+		Nonce: nonce,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start OIDC login"})
 		return
 	}
+	storeOIDCCodeVerifier(state, codeVerifier, time.Now().Add(oidcLoginStateTTL))
 
 	http.SetCookie(c.Writer, &http.Cookie{ // #nosec G124 -- Secure is configurable for local HTTP development and defaults to true.
 		Name:     "oidc_state",
 		Value:    cookieValue,
 		Path:     "/api/auth/oidc",
 		MaxAge:   600,
-		Expires:  time.Now().Add(10 * time.Minute),
+		Expires:  time.Now().Add(oidcLoginStateTTL),
 		Secure:   oidcCookieSecure(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
@@ -197,11 +211,20 @@ func OIDCLogin(c *gin.Context) {
 func OIDCCallback(c *gin.Context) {
 	stateCookie, err := c.Request.Cookie("oidc_state")
 	loginState, stateErr := decodeOIDCLoginState(stateCookie)
-	if err != nil || stateErr != nil || loginState.State == "" || loginState.CodeVerifier == "" || loginState.Nonce == "" || loginState.State != c.Query("state") {
+	if err != nil || stateErr != nil || loginState.State == "" || loginState.Nonce == "" || loginState.State != c.Query("state") {
+		if stateErr == nil && loginState.State != "" {
+			deleteOIDCCodeVerifier(loginState.State)
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid OIDC state"})
 		return
 	}
 	clearOIDCStateCookie(c)
+
+	codeVerifier, ok := takeOIDCCodeVerifier(loginState.State)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid OIDC state"})
+		return
+	}
 
 	code := c.Query("code")
 	if code == "" {
@@ -216,7 +239,7 @@ func OIDCCallback(c *gin.Context) {
 		return
 	}
 
-	oauthToken, err := oauthConfig.Exchange(c.Request.Context(), code, oauth2.SetAuthURLParam("code_verifier", loginState.CodeVerifier))
+	oauthToken, err := oauthConfig.Exchange(c.Request.Context(), code, oauth2.SetAuthURLParam("code_verifier", codeVerifier))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "OIDC token exchange failed"})
 		return
@@ -455,6 +478,42 @@ func randomState() (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
+func storeOIDCCodeVerifier(state, verifier string, expiresAt time.Time) {
+	oidcCodeVerifierStore.Lock()
+	defer oidcCodeVerifierStore.Unlock()
+
+	now := time.Now()
+	for key, entry := range oidcCodeVerifierStore.entries {
+		if !entry.expiresAt.After(now) {
+			delete(oidcCodeVerifierStore.entries, key)
+		}
+	}
+	oidcCodeVerifierStore.entries[state] = oidcCodeVerifierEntry{
+		verifier:  verifier,
+		expiresAt: expiresAt,
+	}
+}
+
+func takeOIDCCodeVerifier(state string) (string, bool) {
+	oidcCodeVerifierStore.Lock()
+	defer oidcCodeVerifierStore.Unlock()
+
+	now := time.Now()
+	entry, ok := oidcCodeVerifierStore.entries[state]
+	delete(oidcCodeVerifierStore.entries, state)
+	if !ok || !entry.expiresAt.After(now) {
+		return "", false
+	}
+	return entry.verifier, true
+}
+
+func deleteOIDCCodeVerifier(state string) {
+	oidcCodeVerifierStore.Lock()
+	defer oidcCodeVerifierStore.Unlock()
+
+	delete(oidcCodeVerifierStore.entries, state)
 }
 
 func encodeOIDCLoginState(state oidcLoginState) (string, error) {
