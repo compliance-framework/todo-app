@@ -1,0 +1,17 @@
+.git
+.github
+.gocache
+.sigstore
+
+frontend
+
+coverage.out
+*.cover
+*.test
+
+.DS_Store
+.idea
+.vscode
+
+.env
+local/.env
