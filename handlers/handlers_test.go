@@ -1219,6 +1219,7 @@ func Test_REQ01_P_011_OIDCLoginRedirect(t *testing.T) {
 	issuer, oidcClient := installTestOIDCProvider(t, testOIDCProvider{
 		key: mustGenerateRSAKey(t),
 	})
+	t.Setenv("APP_ENV", "test")
 	t.Setenv("OIDC_ISSUER_URL", issuer)
 	t.Setenv("OIDC_CLIENT_ID", "client-id")
 	t.Setenv("OIDC_CLIENT_SECRET", "client-secret")
@@ -1870,6 +1871,8 @@ func Test_REQ01_P_014C_AttachOIDCIdentityNormalizesEmptyAuthProvider(t *testing.
 
 // Test_REQ01_P_010_OIDCUtilities verifies OIDC helper behavior.
 func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
+	t.Setenv("APP_ENV", "test")
+
 	if oidcUsername("https://issuer.example.com", auth.OIDCClaims{Email: "user@example.com", Subject: "subject"}) != "user@example.com" {
 		t.Error("Expected email username")
 	}
@@ -1903,13 +1906,56 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 	if _, err := randomState(); err == nil {
 		t.Error("Expected randomState error")
 	}
+	cookieValue, err := encodeOIDCLoginState(oidcLoginState{
+		State:        "state",
+		CodeVerifier: "code-verifier",
+		Nonce:        "nonce",
+	})
+	if err != nil {
+		t.Fatalf("encodeOIDCLoginState returned error: %v", err)
+	}
+	loginState, err := decodeOIDCLoginState(&http.Cookie{Value: cookieValue})
+	if err != nil {
+		t.Fatalf("decodeOIDCLoginState returned error: %v", err)
+	}
+	if loginState.State != "state" || loginState.CodeVerifier != "code-verifier" || loginState.Nonce != "nonce" {
+		t.Fatalf("Unexpected OIDC login state: %+v", loginState)
+	}
 	if _, err := decodeOIDCLoginState(&http.Cookie{Value: "not-base64"}); err == nil {
-		t.Error("Expected invalid base64 state cookie error")
+		t.Error("Expected invalid signed state cookie format error")
+	}
+	parts := strings.Split(cookieValue, ".")
+	payloadReplacement := "A"
+	if parts[0][:1] == payloadReplacement {
+		payloadReplacement = "B"
+	}
+	tamperedPayload := payloadReplacement + parts[0][1:] + "." + parts[1]
+	if _, err := decodeOIDCLoginState(&http.Cookie{Value: tamperedPayload}); err == nil {
+		t.Error("Expected tampered OIDC state payload error")
+	}
+	replacement := "A"
+	if cookieValue[len(cookieValue)-1:] == replacement {
+		replacement = "B"
+	}
+	tamperedSignature := cookieValue[:len(cookieValue)-1] + replacement
+	if _, err := decodeOIDCLoginState(&http.Cookie{Value: tamperedSignature}); err == nil {
+		t.Error("Expected tampered OIDC state signature error")
 	}
 	invalidJSONValue := base64.RawURLEncoding.EncodeToString([]byte("{"))
-	if _, err := decodeOIDCLoginState(&http.Cookie{Value: invalidJSONValue}); err == nil {
+	invalidJSONSignature, err := signOIDCLoginStatePayload(invalidJSONValue)
+	if err != nil {
+		t.Fatalf("signOIDCLoginStatePayload returned error: %v", err)
+	}
+	if _, err := decodeOIDCLoginState(&http.Cookie{Value: invalidJSONValue + "." + invalidJSONSignature}); err == nil {
 		t.Error("Expected invalid JSON state cookie error")
 	}
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("OIDC_STATE_SECRET", "")
+	t.Setenv("JWT_SECRET", "")
+	if _, err := encodeOIDCLoginState(oidcLoginState{State: "state", CodeVerifier: "code-verifier", Nonce: "nonce"}); err == nil {
+		t.Error("Expected missing OIDC state signing secret error outside development")
+	}
+	t.Setenv("APP_ENV", "test")
 
 	t.Setenv("OIDC_COOKIE_SECURE", "")
 	if !oidcCookieSecure() {
@@ -2011,6 +2057,7 @@ func (r *shortReader) Read(p []byte) (int, error) {
 
 func setTestOIDCEnv(t *testing.T, issuer string) {
 	t.Helper()
+	t.Setenv("APP_ENV", "test")
 	t.Setenv("OIDC_ISSUER_URL", issuer)
 	t.Setenv("OIDC_CLIENT_ID", "client-id")
 	t.Setenv("OIDC_CLIENT_SECRET", "client-secret")
@@ -2019,6 +2066,7 @@ func setTestOIDCEnv(t *testing.T, issuer string) {
 
 func testOIDCStateCookie(t *testing.T, state, nonce string) *http.Cookie {
 	t.Helper()
+	t.Setenv("APP_ENV", "test")
 	value, err := encodeOIDCLoginState(oidcLoginState{
 		State:        state,
 		CodeVerifier: "test-code-verifier",

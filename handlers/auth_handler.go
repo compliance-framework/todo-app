@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -425,14 +426,26 @@ func encodeOIDCLoginState(state oidcLoginState) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return base64.RawURLEncoding.EncodeToString(data), nil
+	payload := base64.RawURLEncoding.EncodeToString(data)
+	signature, err := signOIDCLoginStatePayload(payload)
+	if err != nil {
+		return "", err
+	}
+	return payload + "." + signature, nil
 }
 
 func decodeOIDCLoginState(cookie *http.Cookie) (oidcLoginState, error) {
 	if cookie == nil || cookie.Value == "" {
 		return oidcLoginState{}, errors.New("missing OIDC state")
 	}
-	data, err := base64.RawURLEncoding.DecodeString(cookie.Value)
+	parts := strings.Split(cookie.Value, ".")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return oidcLoginState{}, errors.New("invalid OIDC state format")
+	}
+	if err := verifyOIDCLoginStatePayload(parts[0], parts[1]); err != nil {
+		return oidcLoginState{}, err
+	}
+	data, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
 		return oidcLoginState{}, err
 	}
@@ -441,6 +454,35 @@ func decodeOIDCLoginState(cookie *http.Cookie) (oidcLoginState, error) {
 		return oidcLoginState{}, err
 	}
 	return state, nil
+}
+
+func signOIDCLoginStatePayload(payload string) (string, error) {
+	secret, err := auth.CookieSigningSecretFromEnv("OIDC_STATE_SECRET")
+	if err != nil {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, secret)
+	mac.Write([]byte(payload))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
+}
+
+func verifyOIDCLoginStatePayload(payload, signature string) error {
+	expected, err := signOIDCLoginStatePayload(payload)
+	if err != nil {
+		return err
+	}
+	actual, err := base64.RawURLEncoding.DecodeString(signature)
+	if err != nil {
+		return err
+	}
+	expectedBytes, err := base64.RawURLEncoding.DecodeString(expected)
+	if err != nil {
+		return err
+	}
+	if !hmac.Equal(actual, expectedBytes) {
+		return errors.New("invalid OIDC state signature")
+	}
+	return nil
 }
 
 func pkceChallenge(verifier string) string {

@@ -80,6 +80,22 @@ func ConfigureJWTSecretFromEnv() error {
 	return errors.New("JWT_SECRET is required outside development mode")
 }
 
+// CookieSigningSecretFromEnv reads a cookie signing secret with a JWT_SECRET fallback.
+func CookieSigningSecretFromEnv(primaryKey string) ([]byte, error) {
+	secret := strings.TrimSpace(os.Getenv(primaryKey))
+	if secret != "" {
+		return []byte(secret), nil
+	}
+	secret = strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	if secret != "" {
+		return []byte(secret), nil
+	}
+	if isDevelopmentMode() {
+		return []byte(devJWTSecret), nil
+	}
+	return nil, errors.New(primaryKey + " or JWT_SECRET is required outside development mode")
+}
+
 // ValidateToken validates a JWT token and returns the claims
 func ValidateToken(tokenString string) (*Claims, error) {
 	claims := &Claims{}

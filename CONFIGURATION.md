@@ -29,6 +29,7 @@ This document identifies all software configuration items (SCIs) for the Leo App
 | `OIDC_CLIENT_ID` | OIDC client ID | none | Required for OIDC |
 | `OIDC_CLIENT_SECRET` | OIDC client secret | none | Required for OIDC |
 | `OIDC_REDIRECT_URL` | OIDC redirect URL | none | Required for OIDC |
+| `OIDC_STATE_SECRET` | OIDC state cookie signing secret; falls back to `JWT_SECRET` when unset | `JWT_SECRET` | No |
 | `OIDC_COOKIE_SECURE` | Whether OIDC state cookies use the `Secure` attribute | `true` | No |
 
 ## 3. Source Code Configuration Items
@@ -93,6 +94,7 @@ This document identifies all software configuration items (SCIs) for the Leo App
 |---------|-------|
 | Flow | Authorization code |
 | Provider config | `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL` |
+| State cookie signing | `OIDC_STATE_SECRET`, falling back to `JWT_SECRET` |
 | User mapping | Existing `User` model keyed by OIDC issuer/subject and email |
 
 ## 6. API Configuration
