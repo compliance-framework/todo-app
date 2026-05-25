@@ -71,6 +71,8 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_021 | Test_REQ01_N_021_OIDCCallbackInvalidClaims | Negative | handlers/handlers_test.go | Verify OIDC callback handles invalid claims |
 | REQ01_N_022 | Test_REQ01_N_022_OIDCCallbackAccountLinkingConflict | Negative | handlers/handlers_test.go | Verify OIDC callback maps account-linking conflicts to 409 |
 | REQ01_N_023 | Test_REQ01_N_023_OIDCCallbackInvalidNonce | Negative | handlers/handlers_test.go | Verify OIDC callback rejects ID tokens with an invalid nonce |
+| REQ01_N_027 | Test_REQ01_N_027_UpsertOIDCUserRejectsAmbiguousCaseInsensitiveEmail | Negative | handlers/handlers_test.go | Verify ambiguous case-insensitive OIDC email matches are rejected |
+| REQ01_N_028 | Test_REQ01_N_028_UpsertOIDCUserRejectsAmbiguousCaseInsensitiveUsername | Negative | handlers/handlers_test.go | Verify ambiguous case-insensitive OIDC username matches are rejected |
 | Auth_N_001 | Test_Auth_N_001_ConfigureJWTSecretProductionMissing | Negative | auth/auth_test.go | Verify JWT secret is required outside development |
 | Auth_N_002 | Test_Auth_N_002_OIDCConfigOAuth2ConfigUnconfigured | Negative | auth/auth_test.go | Verify unconfigured OIDC config returns error |
 | Auth_N_003 | Test_Auth_N_003_CookieSigningSecretProductionMissing | Negative | auth/auth_test.go | Verify cookie signing secrets are required outside development |
@@ -172,12 +174,12 @@ This document provides traceability from software requirements to test cases, en
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 63 | 28 | 27 | 8 |
+| REQ01 | 65 | 28 | 29 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
 | Infrastructure | 35 | 25 | 10 | 0 |
-| **Total** | **128** | **61** | **51** | **16** |
+| **Total** | **130** | **61** | **53** | **16** |
 
 ## 5. Code Coverage
 
