@@ -278,76 +278,68 @@ resource "aws_security_group" "alb" {
   name        = "${local.name}-alb"
   description = "Allow HTTPS from the internet to the ALB"
   vpc_id      = aws_vpc.app.id
-
-  egress = []
 }
 
 resource "aws_security_group" "app" {
   name        = "${local.name}-app"
   description = "Allow app traffic only from the ALB"
   vpc_id      = aws_vpc.app.id
-
-  egress = []
 }
 
-resource "aws_security_group_rule" "alb_ingress_https" {
-  type              = "ingress"
-  description       = "HTTPS"
+resource "aws_vpc_security_group_ingress_rule" "alb_https" {
+  for_each = toset(var.allowed_https_cidr_blocks)
+
   security_group_id = aws_security_group.alb.id
+  description       = "HTTPS"
+  cidr_ipv4         = each.value
   from_port         = 443
   to_port           = 443
-  protocol          = "tcp"
-  cidr_blocks       = var.allowed_https_cidr_blocks
+  ip_protocol       = "tcp"
 }
 
-resource "aws_security_group_rule" "alb_egress_app" {
-  type                     = "egress"
-  description              = "App traffic to EC2"
-  security_group_id        = aws_security_group.alb.id
-  from_port                = var.app_port
-  to_port                  = var.app_port
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.app.id
+resource "aws_vpc_security_group_egress_rule" "alb_app" {
+  security_group_id            = aws_security_group.alb.id
+  description                  = "App traffic to EC2"
+  referenced_security_group_id = aws_security_group.app.id
+  from_port                    = var.app_port
+  to_port                      = var.app_port
+  ip_protocol                  = "tcp"
 }
 
-resource "aws_security_group_rule" "app_ingress_alb" {
-  type                     = "ingress"
-  description              = "App port from ALB"
-  security_group_id        = aws_security_group.app.id
-  from_port                = var.app_port
-  to_port                  = var.app_port
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.alb.id
+resource "aws_vpc_security_group_ingress_rule" "app_alb" {
+  security_group_id            = aws_security_group.app.id
+  description                  = "App port from ALB"
+  referenced_security_group_id = aws_security_group.alb.id
+  from_port                    = var.app_port
+  to_port                      = var.app_port
+  ip_protocol                  = "tcp"
 }
 
-resource "aws_security_group_rule" "app_egress_https" {
-  type              = "egress"
+resource "aws_vpc_security_group_egress_rule" "app_https" {
+  security_group_id = aws_security_group.app.id
   description       = "Outbound for release downloads and SSM"
-  security_group_id = aws_security_group.app.id
+  cidr_ipv4         = "0.0.0.0/0"
   from_port         = 443
   to_port           = 443
-  protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  ip_protocol       = "tcp"
 }
 
-resource "aws_security_group_rule" "app_egress_dns_udp" {
-  type              = "egress"
-  description       = "DNS to the VPC resolver"
+resource "aws_vpc_security_group_egress_rule" "app_dns_udp" {
   security_group_id = aws_security_group.app.id
+  description       = "DNS to the VPC resolver"
+  cidr_ipv4         = "169.254.169.253/32"
   from_port         = 53
   to_port           = 53
-  protocol          = "udp"
-  cidr_blocks       = ["169.254.169.253/32"]
+  ip_protocol       = "udp"
 }
 
-resource "aws_security_group_rule" "app_egress_dns_tcp" {
-  type              = "egress"
-  description       = "DNS to the VPC resolver"
+resource "aws_vpc_security_group_egress_rule" "app_dns_tcp" {
   security_group_id = aws_security_group.app.id
+  description       = "DNS to the VPC resolver"
+  cidr_ipv4         = "169.254.169.253/32"
   from_port         = 53
   to_port           = 53
-  protocol          = "tcp"
-  cidr_blocks       = ["169.254.169.253/32"]
+  ip_protocol       = "tcp"
 }
 
 resource "aws_s3_bucket" "alb_logs" {
