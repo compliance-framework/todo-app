@@ -9,7 +9,7 @@ This document identifies all software configuration items (SCIs) for the Leo App
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `PORT` | HTTP server port | `8080` | No |
-| `APP_ENV` / `ENV` / `GIN_MODE` | Runtime mode used to enforce production secrets | development | No |
+| `APP_ENV` / `ENV` / `GIN_MODE` | Runtime mode used to enforce production secrets | none | No |
 | `JWT_SECRET` | JWT signing secret | none | Yes outside development |
 | `CORS_ALLOWED_ORIGIN` | Allowed cross-origin browser origin; empty means same-origin only | none | No |
 | `DB_DRIVER` | Database driver: `sqlite` or `postgres` | `sqlite` | No |
@@ -80,7 +80,7 @@ This document identifies all software configuration items (SCIs) for the Leo App
 | Token Expiry | 24 hours | `auth/auth.go` |
 | Secret Key | `JWT_SECRET`; development fallback only | `auth/auth.go` |
 
-**Note**: In production, `JWT_SECRET` must be provided via environment variable.
+**Note**: In production, `JWT_SECRET` must be provided via environment variable. The runtime mode has no implicit development default for secret enforcement; set `APP_ENV`, `ENV`, or `GIN_MODE` explicitly to `debug`, `dev`, `development`, `local`, or `test` to use the development JWT secret fallback. If all runtime mode variables are unset, `JWT_SECRET` is required.
 
 ### 5.2 Password Hashing
 | Setting | Value |

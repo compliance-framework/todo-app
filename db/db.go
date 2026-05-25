@@ -75,7 +75,7 @@ func ConfigFromEnv() Config {
 		Password:     os.Getenv("DB_PASSWORD"),
 		Region:       firstNonEmpty(os.Getenv("DB_REGION"), os.Getenv("AWS_REGION")),
 		SSLMode:      envOrDefault("DB_SSLMODE", "verify-full"),
-		SSLRootCert:  firstNonEmpty(os.Getenv("DB_SSLROOTCERT"), os.Getenv("DB_RDS_CA_CERT_PATH"), defaultRDSCABundlePath()),
+		SSLRootCert:  sslRootCertFromEnv(),
 		IAMAuth:      envBoolOrDefault("DB_IAM_AUTH", true),
 		MaxOpenConns: envIntOrDefault("DB_MAX_OPEN_CONNS", defaultPostgresMaxOpenConns),
 		MaxIdleConns: envIntOrDefault("DB_MAX_IDLE_CONNS", defaultPostgresMaxIdleConns),
@@ -118,7 +118,8 @@ func SetDB(database *gorm.DB) {
 }
 
 func openDB(ctx context.Context, cfg Config) (*gorm.DB, error) {
-	switch strings.ToLower(cfg.Driver) {
+	normalizedDriver := strings.ToLower(strings.TrimSpace(cfg.Driver))
+	switch normalizedDriver {
 	case "", "sqlite":
 		return gorm.Open(sqlite.Open(cfg.SQLitePath), &gorm.Config{})
 	case "postgres", "postgresql":
@@ -299,7 +300,7 @@ func postgresDSN(cfg Config, password string) string {
 	}
 
 	query := dsn.Query()
-	query.Set("sslmode", cfg.SSLMode)
+	query.Set("sslmode", strings.ToLower(strings.TrimSpace(cfg.SSLMode)))
 	if cfg.SSLRootCert != "" {
 		query.Set("sslrootcert", cfg.SSLRootCert)
 	}
@@ -347,6 +348,16 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func sslRootCertFromEnv() string {
+	if value := os.Getenv("DB_SSLROOTCERT"); value != "" {
+		return value
+	}
+	if value := os.Getenv("DB_RDS_CA_CERT_PATH"); value != "" {
+		return value
+	}
+	return defaultRDSCABundlePath()
 }
 
 func defaultRDSCABundlePath() string {

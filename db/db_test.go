@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,6 +140,11 @@ func Test_DB_N_003_OpenDBUnsupportedDriver(t *testing.T) {
 	if err == nil {
 		t.Error("Expected unsupported driver error")
 	}
+
+	_, err = openDB(t.Context(), Config{Driver: " postgres "})
+	if err == nil || !strings.Contains(err.Error(), "DB_HOST, DB_NAME, and DB_USER") {
+		t.Fatalf("Expected trimmed PostgreSQL driver to reach config validation, got %v", err)
+	}
 }
 
 // Test_DB_N_004_ValidatePostgresConfig verifies PostgreSQL config validation.
@@ -190,7 +196,7 @@ func Test_DB_P_005_PostgresDSN(t *testing.T) {
 		Port:        "5432",
 		Name:        "todo",
 		User:        "app",
-		SSLMode:     "verify-full",
+		SSLMode:     " verify-full ",
 		SSLRootCert: "/tmp/rds-ca.pem",
 	}
 
@@ -203,6 +209,13 @@ func Test_DB_P_005_PostgresDSN(t *testing.T) {
 		if !strings.Contains(dsn, part) {
 			t.Errorf("Expected DSN to contain %q, got %q", part, dsn)
 		}
+	}
+	parsedDSN, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatalf("Parse DSN returned error: %v", err)
+	}
+	if sslMode := parsedDSN.Query().Get("sslmode"); sslMode != "verify-full" {
+		t.Fatalf("Expected sslmode to be trimmed, got %q in %q", sslMode, dsn)
 	}
 
 	dsn = postgresDSN(cfg, "")
@@ -514,6 +527,16 @@ func Test_DB_P_008_SmallHelpers(t *testing.T) {
 	}
 	if firstNonEmpty("", "") != "" {
 		t.Error("Expected empty result when all values are empty")
+	}
+
+	t.Setenv("DB_SSLROOTCERT", "/tmp/env-rds.pem")
+	t.Setenv("DB_RDS_CA_CERT_PATH", "/tmp/secondary-rds.pem")
+	if sslRootCertFromEnv() != "/tmp/env-rds.pem" {
+		t.Error("Expected DB_SSLROOTCERT to take precedence")
+	}
+	t.Setenv("DB_SSLROOTCERT", "")
+	if sslRootCertFromEnv() != "/tmp/secondary-rds.pem" {
+		t.Error("Expected DB_RDS_CA_CERT_PATH to be used when DB_SSLROOTCERT is empty")
 	}
 
 	caPath := filepath.Join(t.TempDir(), "global-bundle.pem")

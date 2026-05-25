@@ -1724,6 +1724,29 @@ func Test_REQ01_P_009A_UpsertOIDCUserAttachByEmailCaseInsensitive(t *testing.T) 
 	}
 }
 
+func Test_REQ01_P_009B_UpsertOIDCUserAttachByUsernameCaseInsensitive(t *testing.T) {
+	setupTestDB(t)
+	existing := createTestUser(t, "User@Example.com", "password123")
+
+	user, err := upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{
+		Subject:       "subject-case-username",
+		Email:         " user@example.com ",
+		EmailVerified: true,
+	})
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error: %v", err)
+	}
+	if user.ID != existing.ID || user.OIDCIssuer == nil || user.OIDCSubject == nil {
+		t.Fatalf("Expected existing mixed-case username user to receive OIDC identity, got %+v", user)
+	}
+	if user.AuthProvider != "password" {
+		t.Fatalf("Expected linked password user to keep auth_provider password, got %q", user.AuthProvider)
+	}
+	if user.Email == nil || *user.Email != "user@example.com" {
+		t.Fatalf("Expected linked email to be normalized to lowercase, got %+v", user.Email)
+	}
+}
+
 // Test_REQ01_P_013_UpsertOIDCUserDoesNotAttachUnverifiedEmail verifies unverified emails do not link accounts.
 func Test_REQ01_P_013_UpsertOIDCUserDoesNotAttachUnverifiedEmail(t *testing.T) {
 	setupTestDB(t)

@@ -301,7 +301,7 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 			return models.User{}, err
 		}
 
-		err = db.GetDB().Where("username = ?", verifiedEmail).First(&user).Error
+		err = db.GetDB().Where("LOWER(username) = ?", verifiedEmail).First(&user).Error
 		if err == nil {
 			if user.OIDCIssuer != nil || user.OIDCSubject != nil || (user.AuthProvider != "" && user.AuthProvider != "password") {
 				return models.User{}, errOIDCUsernameMatchNotPasswordUser
