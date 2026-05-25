@@ -19,7 +19,7 @@ This document identifies all software configuration items (SCIs) for the Leo App
 | `DB_NAME` | PostgreSQL database name | none | Yes for PostgreSQL |
 | `DB_USER` | PostgreSQL database user | none | Yes for PostgreSQL |
 | `DB_REGION` / `AWS_REGION` | AWS region for RDS IAM authentication | none | Yes when `DB_IAM_AUTH=true` |
-| `DB_SSLMODE` | PostgreSQL TLS mode; `disable` is rejected | `verify-full` | No |
+| `DB_SSLMODE` | PostgreSQL TLS mode; supported values: `verify-full`, `verify-ca` | `verify-full` | No |
 | `DB_SSLROOTCERT` / `DB_RDS_CA_CERT_PATH` | AWS RDS CA bundle path | auto-detected common path | No |
 | `DB_IAM_AUTH` | Generate RDS IAM auth token from AWS default credentials | `true` | No |
 | `DB_PASSWORD` | Optional PostgreSQL password for non-IAM local connections | none | No |

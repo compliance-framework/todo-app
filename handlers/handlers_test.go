@@ -1695,6 +1695,46 @@ func Test_REQ01_P_008A_UpsertOIDCUserBackfillsVerifiedEmail(t *testing.T) {
 	}
 }
 
+func Test_REQ01_N_008A_UpsertOIDCUserBackfillEmailConflict(t *testing.T) {
+	setupTestDB(t)
+
+	issuer := "https://issuer.example.com"
+	claims := auth.OIDCClaims{
+		Subject:       "subject-backfill-conflict",
+		Email:         "missing@example.com",
+		EmailVerified: false,
+	}
+
+	user, err := upsertOIDCUser(issuer, claims)
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error: %v", err)
+	}
+	if user.Email != nil {
+		t.Fatalf("Expected initial OIDC user to have no email, got %+v", user.Email)
+	}
+
+	conflictingEmail := "verified@example.com"
+	conflictingUser := createTestUser(t, "email-owner", "password123")
+	if err := db.GetDB().Model(&conflictingUser).Update("email", conflictingEmail).Error; err != nil {
+		t.Fatalf("Failed to set conflicting email: %v", err)
+	}
+
+	claims.Email = " Verified@Example.com "
+	claims.EmailVerified = true
+	_, err = upsertOIDCUser(issuer, claims)
+	if !errors.Is(err, errOIDCUserAlreadyLinked) {
+		t.Fatalf("Expected email backfill conflict to fail with errOIDCUserAlreadyLinked, got %v", err)
+	}
+
+	var reloaded models.User
+	if err := db.GetDB().First(&reloaded, user.ID).Error; err != nil {
+		t.Fatalf("Failed to reload user: %v", err)
+	}
+	if reloaded.Email != nil {
+		t.Fatalf("Expected OIDC user email to remain unset after conflict, got %+v", reloaded.Email)
+	}
+}
+
 func Test_REQ01_P_008C_UpsertOIDCUserTreatsOverlongEmailAsAbsent(t *testing.T) {
 	setupTestDB(t)
 

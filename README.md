@@ -82,7 +82,7 @@ go build -o todo-app
 - `DB_NAME` - PostgreSQL database name
 - `DB_USER` - PostgreSQL database user
 - `DB_REGION` / `AWS_REGION` - AWS region for RDS IAM authentication
-- `DB_SSLMODE` - PostgreSQL TLS mode (default: verify-full; `disable` is rejected)
+- `DB_SSLMODE` - PostgreSQL TLS mode (default: verify-full; supported values: `verify-full`, `verify-ca`)
 - `DB_SSLROOTCERT` / `DB_RDS_CA_CERT_PATH` - RDS CA bundle path
 - `DB_IAM_AUTH` - Enable RDS IAM auth token generation (default: true)
 - `DB_PASSWORD` - Optional PostgreSQL password for non-IAM connections (`DB_IAM_AUTH=false`)

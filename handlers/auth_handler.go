@@ -310,6 +310,9 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		verifiedEmail := verifiedOIDCEmail(claims)
 		if verifiedEmail != "" && user.Email == nil {
 			if err := db.GetDB().Model(&models.User{}).Where("id = ?", user.ID).Update("email", verifiedEmail).Error; err != nil {
+				if isUniqueConstraintError(err) {
+					return models.User{}, errOIDCUserAlreadyLinked
+				}
 				return models.User{}, err
 			}
 			if err := db.GetDB().First(&user, user.ID).Error; err != nil {
