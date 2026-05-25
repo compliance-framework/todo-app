@@ -65,10 +65,16 @@ const (
 
 // ConfigFromEnv builds database config from environment variables.
 func ConfigFromEnv() Config {
+	driver := envOrDefault("DB_DRIVER", "sqlite")
+	normalizedDriver := strings.ToLower(strings.TrimSpace(driver))
 	iamAuth := envBoolOrDefault("DB_IAM_AUTH", true)
+	sslRootCert := ""
+	if normalizedDriver == "postgres" || normalizedDriver == "postgresql" {
+		sslRootCert = sslRootCertFromEnv(iamAuth)
+	}
 
 	return Config{
-		Driver:       envOrDefault("DB_DRIVER", "sqlite"),
+		Driver:       driver,
 		SQLitePath:   envOrDefault("DB_PATH", "todo_app.db"),
 		Host:         os.Getenv("DB_HOST"),
 		Port:         envOrDefault("DB_PORT", "5432"),
@@ -77,7 +83,7 @@ func ConfigFromEnv() Config {
 		Password:     os.Getenv("DB_PASSWORD"),
 		Region:       firstNonEmpty(os.Getenv("DB_REGION"), os.Getenv("AWS_REGION")),
 		SSLMode:      envOrDefault("DB_SSLMODE", "verify-full"),
-		SSLRootCert:  sslRootCertFromEnv(iamAuth),
+		SSLRootCert:  sslRootCert,
 		IAMAuth:      iamAuth,
 		MaxOpenConns: envIntOrDefault("DB_MAX_OPEN_CONNS", defaultPostgresMaxOpenConns),
 		MaxIdleConns: envIntOrDefault("DB_MAX_IDLE_CONNS", defaultPostgresMaxIdleConns),

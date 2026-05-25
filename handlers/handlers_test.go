@@ -1257,6 +1257,9 @@ func Test_REQ01_P_011_OIDCLoginRedirect(t *testing.T) {
 	if len(result.Cookies()) == 0 {
 		t.Error("Expected OIDC state cookie")
 	}
+	if result.Cookies()[0].MaxAge != int(oidcLoginStateTTL/time.Second) {
+		t.Fatalf("Expected OIDC state cookie MaxAge to match TTL, got %d", result.Cookies()[0].MaxAge)
+	}
 	loginState, err := decodeOIDCLoginState(result.Cookies()[0])
 	if err != nil {
 		t.Fatalf("Decode OIDC state cookie: %v", err)
@@ -1664,6 +1667,52 @@ func Test_REQ01_P_008A_UpsertOIDCUserBackfillsVerifiedEmail(t *testing.T) {
 	}
 	if reloaded.Email == nil || *reloaded.Email != "verified@example.com" {
 		t.Fatalf("Expected persisted verified email, got %+v", reloaded.Email)
+	}
+}
+
+func Test_REQ01_P_008C_UpsertOIDCUserTreatsOverlongEmailAsAbsent(t *testing.T) {
+	setupTestDB(t)
+
+	claims := auth.OIDCClaims{
+		Subject:       "subject-overlong-email",
+		Email:         strings.Repeat("a", maxOIDCEmailLength-len("@example.com")+1) + "@example.com",
+		EmailVerified: true,
+	}
+
+	user, err := upsertOIDCUser("https://issuer.example.com", claims)
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error: %v", err)
+	}
+	if user.Email != nil {
+		t.Fatalf("Expected overlong email claim to be ignored, got %+v", user.Email)
+	}
+	if !strings.HasPrefix(user.Username, "oidc-") {
+		t.Fatalf("Expected generated OIDC username for ignored overlong email, got %q", user.Username)
+	}
+}
+
+func Test_REQ01_P_008D_UpsertOIDCUserStoresLongEmailButDoesNotUseItAsUsername(t *testing.T) {
+	setupTestDB(t)
+
+	longEmail := strings.Repeat("a", maxOIDCUsernameLength-len("@example.com")+1) + "@example.com"
+	claims := auth.OIDCClaims{
+		Subject:       "subject-long-email",
+		Email:         longEmail,
+		EmailVerified: true,
+	}
+
+	user, err := upsertOIDCUser("https://issuer.example.com", claims)
+	if err != nil {
+		t.Fatalf("upsertOIDCUser returned error: %v", err)
+	}
+	if user.Email == nil || *user.Email != longEmail {
+		t.Fatalf("Expected long verified email to be stored, got %+v", user.Email)
+	}
+	if !strings.HasPrefix(user.Username, "oidc-") {
+		t.Fatalf("Expected generated OIDC username for long email, got %q", user.Username)
+	}
+	if user.Username == longEmail {
+		t.Fatal("Expected long email not to be reused as username")
 	}
 }
 
@@ -2085,6 +2134,23 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 	if verifier, ok := takeOIDCCodeVerifier("active-state"); !ok || verifier != "active-verifier" {
 		t.Fatalf("Expected active OIDC code verifier after cleanup, got %q ok=%v", verifier, ok)
 	}
+	resetOIDCCodeVerifierStore(t)
+	t.Setenv("OIDC_CODE_VERIFIER_STORE_MAX_ENTRIES", "2")
+	storeOIDCCodeVerifier("oldest-state", "oldest-verifier", time.Now().Add(time.Minute))
+	storeOIDCCodeVerifier("middle-state", "middle-verifier", time.Now().Add(2*time.Minute))
+	storeOIDCCodeVerifier("newest-state", "newest-verifier", time.Now().Add(3*time.Minute))
+	oidcCodeVerifierStore.Lock()
+	storeLen := len(oidcCodeVerifierStore.entries)
+	oidcCodeVerifierStore.Unlock()
+	if storeLen != 2 {
+		t.Fatalf("Expected capped OIDC code verifier store length 2, got %d", storeLen)
+	}
+	if _, ok := takeOIDCCodeVerifier("oldest-state"); ok {
+		t.Fatal("Expected oldest OIDC code verifier to be evicted")
+	}
+	if verifier, ok := takeOIDCCodeVerifier("newest-state"); !ok || verifier != "newest-verifier" {
+		t.Fatalf("Expected non-evicted OIDC code verifier, got %q ok=%v", verifier, ok)
+	}
 
 	t.Setenv("OIDC_COOKIE_SECURE", "")
 	if !oidcCookieSecure() {
@@ -2205,6 +2271,13 @@ func testOIDCStateCookie(t *testing.T, state, nonce string) *http.Cookie {
 	}
 	storeOIDCCodeVerifier(state, "test-code-verifier", time.Now().Add(oidcLoginStateTTL))
 	return &http.Cookie{Name: "oidc_state", Value: value}
+}
+
+func resetOIDCCodeVerifierStore(t *testing.T) {
+	t.Helper()
+	oidcCodeVerifierStore.Lock()
+	defer oidcCodeVerifierStore.Unlock()
+	oidcCodeVerifierStore.entries = make(map[string]oidcCodeVerifierEntry)
 }
 
 type testOIDCProvider struct {

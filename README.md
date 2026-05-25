@@ -94,6 +94,7 @@ go build -o todo-app
 - `OIDC_REDIRECT_URL` - OIDC redirect URL
 - `OIDC_STATE_SECRET` - OIDC state cookie signing secret; falls back to `JWT_SECRET` when unset
 - `OIDC_COOKIE_SECURE` - Set OIDC state cookie `Secure` attribute (default: true; set false only for local HTTP)
+- `OIDC_CODE_VERIFIER_STORE_MAX_ENTRIES` - Max in-memory OIDC PKCE verifier entries (default: 1024)
 
 ## Testing
 

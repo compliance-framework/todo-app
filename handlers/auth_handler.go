@@ -55,7 +55,12 @@ type oidcLoginState struct {
 
 var randomReader = rand.Reader
 
-const oidcLoginStateTTL = 10 * time.Minute
+const (
+	oidcLoginStateTTL                      = 10 * time.Minute
+	defaultOIDCCodeVerifierStoreMaxEntries = 1024
+	maxOIDCEmailLength                     = 320
+	maxOIDCUsernameLength                  = 255
+)
 
 type oidcCodeVerifierEntry struct {
 	verifier  string
@@ -187,14 +192,15 @@ func OIDCLogin(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start OIDC login"})
 		return
 	}
-	storeOIDCCodeVerifier(state, codeVerifier, time.Now().Add(oidcLoginStateTTL))
+	expiresAt := time.Now().Add(oidcLoginStateTTL)
+	storeOIDCCodeVerifier(state, codeVerifier, expiresAt)
 
 	http.SetCookie(c.Writer, &http.Cookie{ // #nosec G124 -- Secure is configurable for local HTTP development and defaults to true.
 		Name:     "oidc_state",
 		Value:    cookieValue,
 		Path:     "/api/auth/oidc",
-		MaxAge:   600,
-		Expires:  time.Now().Add(oidcLoginStateTTL),
+		MaxAge:   int(oidcLoginStateTTL / time.Second),
+		Expires:  expiresAt,
 		Secure:   oidcCookieSecure(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
@@ -297,9 +303,8 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 	var user models.User
 	err := findOIDCUser(issuer, claims.Subject, &user)
 	if err == nil {
-		claims.Email = strings.TrimSpace(claims.Email)
-		if claims.EmailVerified && claims.Email != "" && user.Email == nil {
-			verifiedEmail := strings.ToLower(claims.Email)
+		verifiedEmail := verifiedOIDCEmail(claims)
+		if verifiedEmail != "" && user.Email == nil {
 			if err := db.GetDB().Model(&models.User{}).Where("id = ?", user.ID).Update("email", verifiedEmail).Error; err != nil {
 				return models.User{}, err
 			}
@@ -313,11 +318,7 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		return models.User{}, err
 	}
 
-	claims.Email = strings.TrimSpace(claims.Email)
-	verifiedEmail := ""
-	if claims.EmailVerified {
-		verifiedEmail = strings.ToLower(claims.Email)
-	}
+	verifiedEmail := verifiedOIDCEmail(claims)
 	if verifiedEmail != "" {
 		err = db.GetDB().Where("email = ?", verifiedEmail).First(&user).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -330,18 +331,20 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 			return models.User{}, err
 		}
 
-		err = db.GetDB().Where("username = ?", verifiedEmail).First(&user).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			user, err = findUniqueCaseInsensitiveUsernameUser(verifiedEmail)
-		}
-		if err == nil {
-			if user.OIDCIssuer != nil || user.OIDCSubject != nil || (user.AuthProvider != "" && user.AuthProvider != "password") {
-				return models.User{}, errOIDCUsernameMatchNotPasswordUser
+		if len(verifiedEmail) <= maxOIDCUsernameLength {
+			err = db.GetDB().Where("username = ?", verifiedEmail).First(&user).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				user, err = findUniqueCaseInsensitiveUsernameUser(verifiedEmail)
 			}
-			return attachOIDCIdentity(user, issuer, claims)
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return models.User{}, err
+			if err == nil {
+				if user.OIDCIssuer != nil || user.OIDCSubject != nil || (user.AuthProvider != "" && user.AuthProvider != "password") {
+					return models.User{}, errOIDCUsernameMatchNotPasswordUser
+				}
+				return attachOIDCIdentity(user, issuer, claims)
+			}
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return models.User{}, err
+			}
 		}
 	}
 
@@ -351,11 +354,7 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 	}
 
 	usernameClaims := claims
-	if claims.EmailVerified {
-		usernameClaims.Email = verifiedEmail
-	} else {
-		usernameClaims.Email = ""
-	}
+	usernameClaims.Email = verifiedEmail
 	user = models.User{
 		Username:     oidcUsername(issuer, usernameClaims),
 		Password:     passwordHash,
@@ -436,9 +435,8 @@ func attachOIDCIdentity(user models.User, issuer string, claims auth.OIDCClaims)
 	if user.AuthProvider == "" {
 		updates["auth_provider"] = "password"
 	}
-	claims.Email = strings.TrimSpace(claims.Email)
-	if claims.EmailVerified && claims.Email != "" {
-		updates["email"] = strings.ToLower(claims.Email)
+	if verifiedEmail := verifiedOIDCEmail(claims); verifiedEmail != "" {
+		updates["email"] = verifiedEmail
 	}
 
 	result := db.GetDB().
@@ -464,12 +462,23 @@ func attachOIDCIdentity(user models.User, issuer string, claims auth.OIDCClaims)
 
 func oidcUsername(issuer string, claims auth.OIDCClaims) string {
 	email := strings.TrimSpace(claims.Email)
-	if email != "" && len(email) <= 255 {
+	if email != "" && len(email) <= maxOIDCUsernameLength {
 		return email
 	}
 
 	hash := sha256.Sum256([]byte(issuer + "\x00" + claims.Subject))
 	return "oidc-" + hex.EncodeToString(hash[:])[:32]
+}
+
+func verifiedOIDCEmail(claims auth.OIDCClaims) string {
+	if !claims.EmailVerified {
+		return ""
+	}
+	email := strings.ToLower(strings.TrimSpace(claims.Email))
+	if email == "" || len(email) > maxOIDCEmailLength {
+		return ""
+	}
+	return email
 }
 
 func randomState() (string, error) {
@@ -490,9 +499,38 @@ func storeOIDCCodeVerifier(state, verifier string, expiresAt time.Time) {
 			delete(oidcCodeVerifierStore.entries, key)
 		}
 	}
+	if maxEntries := oidcCodeVerifierStoreMaxEntries(); maxEntries > 0 && len(oidcCodeVerifierStore.entries) >= maxEntries {
+		evictOldestOIDCCodeVerifier()
+	}
 	oidcCodeVerifierStore.entries[state] = oidcCodeVerifierEntry{
 		verifier:  verifier,
 		expiresAt: expiresAt,
+	}
+}
+
+func oidcCodeVerifierStoreMaxEntries() int {
+	value := strings.TrimSpace(os.Getenv("OIDC_CODE_VERIFIER_STORE_MAX_ENTRIES"))
+	if value == "" {
+		return defaultOIDCCodeVerifierStoreMaxEntries
+	}
+	entries, err := strconv.Atoi(value)
+	if err != nil || entries < 1 {
+		return defaultOIDCCodeVerifierStoreMaxEntries
+	}
+	return entries
+}
+
+func evictOldestOIDCCodeVerifier() {
+	var oldestState string
+	var oldestExpiresAt time.Time
+	for state, entry := range oidcCodeVerifierStore.entries {
+		if oldestState == "" || entry.expiresAt.Before(oldestExpiresAt) {
+			oldestState = state
+			oldestExpiresAt = entry.expiresAt
+		}
+	}
+	if oldestState != "" {
+		delete(oidcCodeVerifierStore.entries, oldestState)
 	}
 }
 

@@ -145,6 +145,7 @@ func Test_DB_P_004B_ConfigFromEnvDoesNotAutoSelectRDSCAWithoutIAM(t *testing.T) 
 	rdsCABundlePaths = []string{caPath}
 	defer func() { rdsCABundlePaths = originalPaths }()
 
+	t.Setenv("DB_DRIVER", "postgres")
 	t.Setenv("DB_IAM_AUTH", "false")
 	t.Setenv("DB_SSLROOTCERT", "")
 	t.Setenv("DB_RDS_CA_CERT_PATH", "")
@@ -165,6 +166,28 @@ func Test_DB_P_004B_ConfigFromEnvDoesNotAutoSelectRDSCAWithoutIAM(t *testing.T) 
 	cfg = ConfigFromEnv()
 	if cfg.SSLRootCert != "/tmp/secondary-rds.pem" {
 		t.Fatalf("Expected explicit DB_RDS_CA_CERT_PATH to be used, got %q", cfg.SSLRootCert)
+	}
+}
+
+// Test_DB_P_004C_ConfigFromEnvSkipsRDSCAForSQLite verifies sqlite config does
+// not inspect or select PostgreSQL RDS CA defaults.
+func Test_DB_P_004C_ConfigFromEnvSkipsRDSCAForSQLite(t *testing.T) {
+	originalPaths := rdsCABundlePaths
+	caPath := filepath.Join(t.TempDir(), "global-bundle.pem")
+	if err := os.WriteFile(caPath, []byte("test"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	rdsCABundlePaths = []string{caPath}
+	defer func() { rdsCABundlePaths = originalPaths }()
+
+	t.Setenv("DB_DRIVER", "sqlite")
+	t.Setenv("DB_IAM_AUTH", "true")
+	t.Setenv("DB_SSLROOTCERT", "")
+	t.Setenv("DB_RDS_CA_CERT_PATH", "")
+
+	cfg := ConfigFromEnv()
+	if cfg.SSLRootCert != "" {
+		t.Fatalf("Expected SQLite SSLRootCert to stay empty, got %q", cfg.SSLRootCert)
 	}
 }
 

@@ -31,6 +31,7 @@ This document identifies all software configuration items (SCIs) for the Leo App
 | `OIDC_REDIRECT_URL` | OIDC redirect URL | none | Required for OIDC |
 | `OIDC_STATE_SECRET` | OIDC state cookie signing secret; falls back to `JWT_SECRET` when unset | `JWT_SECRET` | No |
 | `OIDC_COOKIE_SECURE` | Whether OIDC state cookies use the `Secure` attribute | `true` | No |
+| `OIDC_CODE_VERIFIER_STORE_MAX_ENTRIES` | Maximum in-memory OIDC PKCE verifier entries | `1024` | No |
 
 ## 3. Source Code Configuration Items
 
