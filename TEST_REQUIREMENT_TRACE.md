@@ -174,6 +174,7 @@ This document provides traceability from software requirements to test cases, en
 | Main_P_003 | Test_Main_P_003_CORSMiddlewareDefaultSameOrigin | Positive | main_test.go | Verify CORS defaults to same-origin only |
 | Main_P_003B | Test_Main_P_003B_CORSMiddlewareConfigured | Positive | main_test.go | Verify configured CORS origin is allowed |
 | Main_P_003C | Test_Main_P_003C_CORSMiddlewareWildcardDoesNotVary | Positive | main_test.go | Verify wildcard CORS does not vary by origin |
+| Main_P_003D | Test_Main_P_003D_CORSMiddlewareDisallowedOriginVary | Positive | main_test.go | Verify disallowed CORS origins vary cached responses |
 | Main_P_004 | Test_Main_P_004_CORSMiddlewareOptions | Positive | main_test.go | Verify OPTIONS request handling |
 | Main_P_007 | Test_Main_P_007_GetPortDefault | Positive | main_test.go | Verify default port |
 | Main_P_008 | Test_Main_P_008_GetPortEnv | Positive | main_test.go | Verify port from environment |
