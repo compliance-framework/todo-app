@@ -138,6 +138,25 @@ download_and_verify() {
   chmod 0755 "$artifact"
 }
 
+invalid_release_tag() {
+  log "invalid release tag: $(printf '%q' "$1")"
+  exit 1
+}
+
+validate_release_tag() {
+  local tag="$1"
+
+  if [[ -z "$tag" ||
+    "$tag" == "." ||
+    "$tag" == ".." ||
+    "$tag" == *".."* ||
+    "$tag" == *"/"* ||
+    "$tag" =~ [[:space:]] ||
+    ! "$tag" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    invalid_release_tag "$tag"
+  fi
+}
+
 write_environment_file() {
   cat >"$ENV_FILE" <<EOF
 PORT=${APP_PORT}
@@ -180,6 +199,7 @@ install_release() {
   local tag="$1"
   local work_dir
   local release_dir
+  validate_release_tag "$tag"
   work_dir="$(mktemp -d)"
   release_dir="$APP_HOME/releases/$tag"
 
