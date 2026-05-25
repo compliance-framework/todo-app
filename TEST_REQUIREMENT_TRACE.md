@@ -193,13 +193,14 @@ This document provides traceability from software requirements to test cases, en
 
 | Package | Coverage |
 |---------|----------|
+| main | 91.8% |
 | auth | 98.0% |
-| db | 95.1% |
-| handlers | 94.7% |
+| db | 95.2% |
+| handlers | 94.3% |
 | models | 100.0% |
-| **Total** | **95.2%** |
+| **Total** | **95.0%** |
 
-*Note: main.go is excluded from coverage as it contains only the application entry point.*
+*Note: main.go is included in coverage because it contains router setup, CORS and audit middleware, health checks, configuration helpers, and application startup orchestration covered by main_test.go.*
 
 ## 6. Test Execution
 
@@ -208,9 +209,9 @@ Tests are executed using:
 go test -v ./...
 ```
 
-Coverage report (excluding main.go):
+Coverage report:
 ```bash
-go test -coverprofile=coverage.out ./auth ./db ./handlers ./models
+go test -coverprofile=coverage.out ./...
 go tool cover -func=coverage.out
 ```
 
