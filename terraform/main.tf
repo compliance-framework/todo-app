@@ -1,11 +1,12 @@
 locals {
-  availability_zone_count = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs), length(data.aws_availability_zones.available.names))
-  name                    = "${var.name_prefix}-${var.environment}"
-  alb_name                = substr(replace(local.name, "_", "-"), 0, 32)
-  alb_logs_bucket_prefix  = "${substr(local.name, 0, 27)}-alb-logs-"
-  target_group_name       = trimsuffix(substr("${replace(local.name, "_", "-")}-app", 0, 32), "-")
-  vpc_flow_log_group_name = "/aws/vpc/${local.name}/flow-logs"
-  vpc_flow_log_group_arn  = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.vpc_flow_log_group_name}"
+  availability_zone_count    = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs), length(data.aws_availability_zones.available.names))
+  name                       = "${var.name_prefix}-${var.environment}"
+  alb_name                   = substr(replace(local.name, "_", "-"), 0, 32)
+  alb_logs_bucket_prefix     = "${substr(local.name, 0, 27)}-alb-logs-"
+  target_group_name          = trimsuffix(substr("${replace(local.name, "_", "-")}-app", 0, 32), "-")
+  vpc_flow_log_group_name    = "/aws/vpc/${local.name}/flow-logs"
+  vpc_flow_log_group_arn     = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.vpc_flow_log_group_name}"
+  release_tag_parameter_name = coalesce(var.release_tag_parameter_name, "/${local.name}/release-tag")
 
   bootstrap_parameter_arns = [aws_ssm_parameter.release_tag.arn]
 }
@@ -496,7 +497,7 @@ resource "aws_lb_listener" "https" {
 }
 
 resource "aws_ssm_parameter" "release_tag" {
-  name        = var.release_tag_parameter_name
+  name        = local.release_tag_parameter_name
   description = "Target todo-app release tag installed by bootstrap.sh"
   type        = "String"
   value       = var.release_tag
@@ -614,7 +615,7 @@ resource "aws_launch_template" "app" {
     github_repository                  = var.github_repository
     release_artifact_name              = var.release_artifact_name
     release_signature_bundle_name      = var.release_signature_bundle_name
-    release_tag_parameter_name         = var.release_tag_parameter_name
+    release_tag_parameter_name         = local.release_tag_parameter_name
   }))
 
   tag_specifications {
@@ -647,12 +648,13 @@ resource "aws_launch_template" "app" {
 }
 
 resource "aws_autoscaling_group" "app" {
-  name                = local.name
-  min_size            = 1
-  max_size            = 1
-  desired_capacity    = 1
-  vpc_zone_identifier = aws_subnet.private[*].id
-  health_check_type   = "ELB"
+  name                      = local.name
+  min_size                  = 1
+  max_size                  = 1
+  desired_capacity          = 1
+  vpc_zone_identifier       = aws_subnet.private[*].id
+  health_check_type         = "ELB"
+  health_check_grace_period = 600
 
   launch_template {
     id      = aws_launch_template.app.id

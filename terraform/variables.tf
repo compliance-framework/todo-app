@@ -97,9 +97,15 @@ variable "release_tag" {
 }
 
 variable "release_tag_parameter_name" {
-  description = "SSM Parameter name that stores the target release tag used by bootstrap upgrades."
+  description = "SSM Parameter name that stores the target release tag used by bootstrap upgrades. When null, the stack derives a name from name_prefix and environment."
   type        = string
-  default     = "/todo-app/release-tag"
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.release_tag_parameter_name == null ? true : startswith(var.release_tag_parameter_name, "/")
+    error_message = "release_tag_parameter_name must be null or an absolute SSM parameter path beginning with /."
+  }
 }
 
 variable "github_repository" {
