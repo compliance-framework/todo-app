@@ -92,7 +92,7 @@ func AuditLogMiddleware() gin.HandlerFunc {
 			"path":      c.Request.URL.Path,
 			"status":    c.Writer.Status(),
 		}
-		if userID, exists := c.Get("user_id"); exists {
+		if userID, ok := auth.GetUserIDFromContext(c); ok {
 			entry["user_id"] = userID
 		}
 

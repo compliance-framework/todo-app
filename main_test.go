@@ -151,6 +151,33 @@ func Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
 		!strings.HasPrefix(logOutput, "{") {
 		t.Errorf("Expected raw JSON audit log with user ID on stdout, got %q", logOutput)
 	}
+
+	thirdStdoutReader, thirdStdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to capture stdout: %v", err)
+	}
+	os.Stdout = thirdStdoutWriter
+	router.GET("/audit-invalid-user", func(c *gin.Context) {
+		c.Set("user_id", make(chan int))
+		c.Status(http.StatusNoContent)
+	})
+	req, _ = http.NewRequestWithContext(t.Context(), "GET", "/audit-invalid-user", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Errorf("Expected status %d, got %d", http.StatusNoContent, w.Code)
+	}
+	if err := thirdStdoutWriter.Close(); err != nil {
+		t.Fatalf("Failed to close stdout writer: %v", err)
+	}
+	logs = readCapturedStdout(thirdStdoutReader)
+	logOutput = string(logs)
+	if !strings.Contains(logOutput, `"path":"/audit-invalid-user"`) ||
+		strings.Contains(logOutput, `"user_id"`) ||
+		!strings.HasPrefix(logOutput, "{") {
+		t.Errorf("Expected raw JSON audit log without invalid user ID on stdout, got %q", logOutput)
+	}
 }
 
 // Test_Main_P_003_CORSMiddlewareDefaultSameOrigin verifies CORS does not allow all origins by default.
