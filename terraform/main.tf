@@ -2,6 +2,7 @@ locals {
   availability_zone_count = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs), length(data.aws_availability_zones.available.names))
   name                    = "${var.name_prefix}-${var.environment}"
   alb_name                = substr(replace(local.name, "_", "-"), 0, 32)
+  alb_logs_bucket_prefix  = "${substr(local.name, 0, 27)}-alb-logs-"
   target_group_name       = trimsuffix(substr("${replace(local.name, "_", "-")}-app", 0, 32), "-")
   vpc_flow_log_group_name = "/aws/vpc/${local.name}/flow-logs"
   vpc_flow_log_group_arn  = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.vpc_flow_log_group_name}"
@@ -349,7 +350,7 @@ resource "aws_security_group_rule" "app_egress_dns_tcp" {
 }
 
 resource "aws_s3_bucket" "alb_logs" {
-  bucket_prefix = "${local.name}-alb-logs-"
+  bucket_prefix = local.alb_logs_bucket_prefix
 }
 
 resource "aws_s3_bucket_ownership_controls" "alb_logs" {
