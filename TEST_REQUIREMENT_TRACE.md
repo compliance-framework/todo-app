@@ -31,6 +31,8 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_P_008B | Test_REQ01_P_008B_UpsertOIDCUserRetriesAfterCreateRace | Positive | handlers/handlers_test.go | Verify OIDC upsert retries after a duplicate create race |
 | REQ01_P_008C | Test_REQ01_P_008C_UpsertOIDCUserTreatsOverlongEmailAsAbsent | Positive | handlers/handlers_test.go | Verify OIDC upsert ignores overlong verified email claims |
 | REQ01_P_008D | Test_REQ01_P_008D_UpsertOIDCUserStoresLongEmailButDoesNotUseItAsUsername | Positive | handlers/handlers_test.go | Verify OIDC upsert stores long emails without reusing them as usernames |
+| REQ01_P_008E | Test_REQ01_P_008C_UpsertOIDCUserRetriesEmailAttachAfterCreateRace | Positive | handlers/handlers_test.go | Verify OIDC upsert retries email attachment after a create race |
+| REQ01_P_008F | Test_REQ01_P_008D_UpsertOIDCUserRetriesUsernameAttachAfterCreateRace | Positive | handlers/handlers_test.go | Verify OIDC upsert retries username attachment after a create race |
 | REQ01_P_009 | Test_REQ01_P_009_UpsertOIDCUserAttachByEmail | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by email |
 | REQ01_P_009A | Test_REQ01_P_009A_UpsertOIDCUserAttachByEmailCaseInsensitive | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by email case-insensitively |
 | REQ01_P_009B | Test_REQ01_P_009B_UpsertOIDCUserAttachByUsernameCaseInsensitive | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by username case-insensitively |
@@ -58,6 +60,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_006 | Test_REQ01_N_006_AuthMiddlewareMalformedHeader | Negative | auth/auth_test.go | Verify middleware rejects malformed header |
 | REQ01_N_007 | Test_REQ01_N_007_GetUserIDFromContextMissing | Negative | auth/auth_test.go | Verify missing user ID returns false |
 | REQ01_N_008 | Test_REQ01_N_008_GetUserIDFromContextInvalidType | Negative | auth/auth_test.go | Verify invalid user ID type returns false |
+| REQ01_N_008E | Test_REQ01_N_008E_UpsertOIDCUserCreateRacePreservesUsernameConflict | Negative | handlers/handlers_test.go | Verify OIDC upsert create races preserve username conflict errors |
 | REQ01_N_009 | Test_REQ01_N_009_LoginInvalidPassword | Negative | handlers/handlers_test.go | Verify login fails with wrong password |
 | REQ01_N_010 | Test_REQ01_N_010_LoginNonexistentUser | Negative | handlers/handlers_test.go | Verify login fails for non-existent user |
 | REQ01_N_011 | Test_REQ01_N_011_RegisterDuplicateUsername | Negative | handlers/handlers_test.go | Verify registration fails for duplicate username |
