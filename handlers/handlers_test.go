@@ -2291,6 +2291,14 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 	if oidcCookieSecure() {
 		t.Error("Expected OIDC cookie secure override to be false")
 	}
+	t.Setenv("OIDC_COOKIE_SECURE", " false ")
+	if oidcCookieSecure() {
+		t.Error("Expected trimmed OIDC cookie secure override to be false")
+	}
+	t.Setenv("OIDC_COOKIE_SECURE", " true ")
+	if !oidcCookieSecure() {
+		t.Error("Expected trimmed OIDC cookie secure override to be true")
+	}
 	t.Setenv("OIDC_COOKIE_SECURE", "invalid")
 	if !oidcCookieSecure() {
 		t.Error("Expected invalid OIDC cookie secure override to fall back to true")

@@ -675,7 +675,7 @@ func clearOIDCStateCookie(c *gin.Context) {
 }
 
 func oidcCookieSecure() bool {
-	value := os.Getenv("OIDC_COOKIE_SECURE")
+	value := strings.TrimSpace(os.Getenv("OIDC_COOKIE_SECURE"))
 	if value == "" {
 		return true
 	}
