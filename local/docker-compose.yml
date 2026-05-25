@@ -37,6 +37,7 @@ services:
       DB_SSLROOTCERT: /certs/ca.crt
       DB_IAM_AUTH: "false"
       CORS_ALLOWED_ORIGIN: "*"
+      OIDC_FRONTEND_URL: http://localhost:3000
     volumes:
       - postgres_certs:/certs:ro
     ports:

@@ -313,7 +313,24 @@ func OIDCCallback(c *gin.Context) {
 	params := url.Values{}
 	params.Set("oidc_token", token)
 	params.Set("oidc_user", base64.RawURLEncoding.EncodeToString(userJSON))
-	c.Redirect(http.StatusFound, frontendURL+"?"+params.Encode())
+
+	redirectURL, err := url.Parse(frontendURL)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid frontend redirect URL"})
+		return
+	}
+	fragmentParams, err := url.ParseQuery(redirectURL.Fragment)
+	if err != nil {
+		fragmentParams = url.Values{}
+	}
+	for key, values := range params {
+		fragmentParams.Del(key)
+		for _, value := range values {
+			fragmentParams.Add(key, value)
+		}
+	}
+	redirectURL.Fragment = fragmentParams.Encode()
+	c.Redirect(http.StatusFound, redirectURL.String())
 }
 
 func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) {

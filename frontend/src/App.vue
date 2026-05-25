@@ -66,31 +66,46 @@ const openCount = computed(() => todos.value.length - completedCount.value);
 const isAuthenticated = computed(() => Boolean(token.value && currentUser.value));
 
 onMounted(() => {
-  handleOIDCRedirect();
-  void loadTodos();
+  const handledOIDCRedirect = handleOIDCRedirect();
+  void loadTodos({ preserveMessages: handledOIDCRedirect });
 });
 
 function handleOIDCRedirect() {
-  const params = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "");
+  const searchParams = new URLSearchParams(window.location.search);
+  const params = hashParams.has("oidc_token") && hashParams.has("oidc_user") ? hashParams : searchParams;
   const oidcToken = params.get("oidc_token");
   const oidcUser = params.get("oidc_user");
-  if (!oidcToken || !oidcUser) return;
+  if (!oidcToken || !oidcUser) return false;
 
   try {
-    const user = JSON.parse(atob(oidcUser.replace(/-/g, "+").replace(/_/g, "/")));
+    const user = decodeBase64UrlJSON<User>(oidcUser);
     setSession(oidcToken, user);
     statusMessage.value = "Signed in with provider.";
   } catch {
     errorMessage.value = "OIDC sign-in failed: could not read session.";
   }
 
-  const cleanUrl = window.location.pathname;
+  searchParams.delete("oidc_token");
+  searchParams.delete("oidc_user");
+  const remainingSearch = searchParams.toString();
+  const cleanUrl = `${window.location.pathname}${remainingSearch ? `?${remainingSearch}` : ""}`;
   window.history.replaceState({}, "", cleanUrl);
+  return true;
 }
 
-async function loadTodos() {
+function decodeBase64UrlJSON<T>(value: string): T {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes)) as T;
+}
+
+async function loadTodos(options: { preserveMessages?: boolean } = {}) {
   loadingTodos.value = true;
-  clearMessages();
+  if (!options.preserveMessages) {
+    clearMessages();
+  }
 
   try {
     todos.value = await api.listTodos();
@@ -444,7 +459,7 @@ function readStoredSession() {
         <section class="space-y-4">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 class="text-xl font-semibold">All todos</h2>
-            <Button variant="outline" size="sm" :disabled="loadingTodos" @click="loadTodos">
+            <Button variant="outline" size="sm" :disabled="loadingTodos" @click="loadTodos()">
               <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': loadingTodos }" />
               Refresh
             </Button>

@@ -1485,7 +1485,7 @@ func Test_REQ01_P_012A_OIDCCallbackRedirectsToFrontend(t *testing.T) {
 		},
 	})
 	setTestOIDCEnv(t, issuer)
-	t.Setenv("OIDC_FRONTEND_URL", "https://frontend.example.com/auth/callback")
+	t.Setenv("OIDC_FRONTEND_URL", "https://frontend.example.com/auth/callback?existing=1#view=login")
 
 	router := gin.New()
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
@@ -1499,15 +1499,28 @@ func Test_REQ01_P_012A_OIDCCallbackRedirectsToFrontend(t *testing.T) {
 		t.Fatalf("Expected status %d, got %d with body %s", http.StatusFound, w.Code, w.Body.String())
 	}
 	location := w.Header().Get("Location")
-	if !strings.HasPrefix(location, "https://frontend.example.com/auth/callback?") {
+	if !strings.HasPrefix(location, "https://frontend.example.com/auth/callback?existing=1#") {
 		t.Fatalf("Unexpected redirect location: %s", location)
 	}
 	redirectURL, err := url.Parse(location)
 	if err != nil {
 		t.Fatalf("Parse redirect location: %v", err)
 	}
-	if redirectURL.Query().Get("oidc_token") == "" || redirectURL.Query().Get("oidc_user") == "" {
-		t.Fatalf("Expected token and user in redirect location: %s", location)
+	if redirectURL.Query().Get("existing") != "1" {
+		t.Fatalf("Expected existing query value to be preserved in redirect location: %s", location)
+	}
+	if redirectURL.Query().Get("oidc_token") != "" || redirectURL.Query().Get("oidc_user") != "" {
+		t.Fatalf("Expected token and user to be omitted from redirect query: %s", location)
+	}
+	fragmentParams, err := url.ParseQuery(redirectURL.Fragment)
+	if err != nil {
+		t.Fatalf("Parse redirect fragment: %v", err)
+	}
+	if fragmentParams.Get("view") != "login" {
+		t.Fatalf("Expected existing fragment value to be preserved in redirect location: %s", location)
+	}
+	if fragmentParams.Get("oidc_token") == "" || fragmentParams.Get("oidc_user") == "" {
+		t.Fatalf("Expected token and user in redirect fragment: %s", location)
 	}
 }
 
