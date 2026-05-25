@@ -190,12 +190,12 @@ This document provides traceability from software requirements to test cases, en
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 72 | 32 | 32 | 8 |
+| REQ01 | 67 | 27 | 32 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
-| Infrastructure | 36 | 26 | 10 | 0 |
-| **Total** | **138** | **66** | **56** | **16** |
+| Infrastructure | 49 | 36 | 13 | 0 |
+| **Total** | **146** | **71** | **59** | **16** |
 
 ## 5. Code Coverage
 
