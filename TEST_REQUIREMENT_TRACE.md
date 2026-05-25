@@ -31,6 +31,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_P_008B | Test_REQ01_P_008B_UpsertOIDCUserRetriesAfterCreateRace | Positive | handlers/handlers_test.go | Verify OIDC upsert retries after a duplicate create race |
 | REQ01_P_009 | Test_REQ01_P_009_UpsertOIDCUserAttachByEmail | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by email |
 | REQ01_P_009A | Test_REQ01_P_009A_UpsertOIDCUserAttachByEmailCaseInsensitive | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by email case-insensitively |
+| REQ01_P_009B | Test_REQ01_P_009B_UpsertOIDCUserAttachByUsernameCaseInsensitive | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by username case-insensitively |
 | REQ01_P_010 | Test_REQ01_P_010_OIDCUtilities | Positive | handlers/handlers_test.go | Verify OIDC utility helpers |
 | REQ01_P_011 | Test_REQ01_P_011_OIDCLoginRedirect | Positive | handlers/handlers_test.go | Verify OIDC login redirects to provider |
 | REQ01_P_012 | Test_REQ01_P_012_OIDCCallbackSuccess | Positive | handlers/handlers_test.go | Verify OIDC callback creates user and returns app JWT |
