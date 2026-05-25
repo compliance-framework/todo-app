@@ -220,6 +220,7 @@ func OIDCCallback(c *gin.Context) {
 	if err != nil || stateErr != nil || loginState.State == "" || loginState.Nonce == "" || loginState.State != c.Query("state") {
 		if stateErr == nil && loginState.State != "" {
 			deleteOIDCCodeVerifier(loginState.State)
+			clearOIDCStateCookie(c)
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid OIDC state"})
 		return

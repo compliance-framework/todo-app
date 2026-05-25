@@ -76,12 +76,12 @@ func ConfigFromEnv() Config {
 	return Config{
 		Driver:       driver,
 		SQLitePath:   envOrDefault("DB_PATH", "todo_app.db"),
-		Host:         os.Getenv("DB_HOST"),
+		Host:         strings.TrimSpace(os.Getenv("DB_HOST")),
 		Port:         envOrDefault("DB_PORT", "5432"),
-		Name:         os.Getenv("DB_NAME"),
-		User:         os.Getenv("DB_USER"),
-		Password:     os.Getenv("DB_PASSWORD"),
-		Region:       firstNonEmpty(os.Getenv("DB_REGION"), os.Getenv("AWS_REGION")),
+		Name:         strings.TrimSpace(os.Getenv("DB_NAME")),
+		User:         strings.TrimSpace(os.Getenv("DB_USER")),
+		Password:     strings.TrimSpace(os.Getenv("DB_PASSWORD")),
+		Region:       firstNonEmpty(strings.TrimSpace(os.Getenv("DB_REGION")), strings.TrimSpace(os.Getenv("AWS_REGION"))),
 		SSLMode:      envOrDefault("DB_SSLMODE", "verify-full"),
 		SSLRootCert:  sslRootCert,
 		IAMAuth:      iamAuth,
@@ -318,7 +318,7 @@ func postgresDSN(cfg Config, password string) string {
 }
 
 func envOrDefault(key, fallback string) string {
-	value := os.Getenv(key)
+	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
 	}
@@ -326,7 +326,7 @@ func envOrDefault(key, fallback string) string {
 }
 
 func envBoolOrDefault(key string, fallback bool) bool {
-	value := os.Getenv(key)
+	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
 	}
@@ -338,7 +338,7 @@ func envBoolOrDefault(key string, fallback bool) bool {
 }
 
 func envIntOrDefault(key string, fallback int) int {
-	value := os.Getenv(key)
+	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
 	}
@@ -359,10 +359,10 @@ func firstNonEmpty(values ...string) string {
 }
 
 func sslRootCertFromEnv(iamAuth bool) string {
-	if value := os.Getenv("DB_SSLROOTCERT"); value != "" {
+	if value := strings.TrimSpace(os.Getenv("DB_SSLROOTCERT")); value != "" {
 		return value
 	}
-	if value := os.Getenv("DB_RDS_CA_CERT_PATH"); value != "" {
+	if value := strings.TrimSpace(os.Getenv("DB_RDS_CA_CERT_PATH")); value != "" {
 		return value
 	}
 	if iamAuth {

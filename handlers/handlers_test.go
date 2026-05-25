@@ -1290,7 +1290,7 @@ func Test_REQ01_N_015_OIDCCallbackInvalidState(t *testing.T) {
 	}
 }
 
-// Test_REQ01_N_015A_OIDCCallbackStateMismatchClearsVerifier verifies mismatched states clear stored PKCE verifiers.
+// Test_REQ01_N_015A_OIDCCallbackStateMismatchClearsVerifier verifies mismatched states clear OIDC state.
 func Test_REQ01_N_015A_OIDCCallbackStateMismatchClearsVerifier(t *testing.T) {
 	router := gin.New()
 	router.GET("/api/auth/oidc/callback", OIDCCallback)
@@ -1305,6 +1305,11 @@ func Test_REQ01_N_015A_OIDCCallbackStateMismatchClearsVerifier(t *testing.T) {
 	}
 	if _, ok := takeOIDCCodeVerifier("state"); ok {
 		t.Error("Expected mismatched callback to clear stored OIDC code verifier")
+	}
+	result := w.Result()
+	defer result.Body.Close()
+	if len(result.Cookies()) == 0 || result.Cookies()[0].Name != "oidc_state" || result.Cookies()[0].MaxAge != -1 {
+		t.Error("Expected mismatched callback to clear OIDC state cookie")
 	}
 }
 

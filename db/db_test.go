@@ -134,6 +134,39 @@ func Test_DB_P_004_ConfigFromEnv(t *testing.T) {
 	}
 }
 
+// Test_DB_P_004A_ConfigFromEnvTrimsWhitespace verifies database config values
+// are normalized before validation, parsing, and connection setup.
+func Test_DB_P_004A_ConfigFromEnvTrimsWhitespace(t *testing.T) {
+	t.Setenv("DB_DRIVER", " postgres ")
+	t.Setenv("DB_PATH", " /tmp/test.db ")
+	t.Setenv("DB_HOST", " db.example.com ")
+	t.Setenv("DB_PORT", " 6543 ")
+	t.Setenv("DB_NAME", " todo ")
+	t.Setenv("DB_USER", " app ")
+	t.Setenv("DB_PASSWORD", " password ")
+	t.Setenv("DB_REGION", " ")
+	t.Setenv("AWS_REGION", " us-east-1 ")
+	t.Setenv("DB_SSLMODE", " require ")
+	t.Setenv("DB_SSLROOTCERT", " /tmp/rds.pem ")
+	t.Setenv("DB_IAM_AUTH", " false ")
+	t.Setenv("DB_MAX_OPEN_CONNS", " 12 ")
+	t.Setenv("DB_MAX_IDLE_CONNS", " 4 ")
+
+	cfg := ConfigFromEnv()
+	if cfg.Driver != "postgres" || cfg.SQLitePath != "/tmp/test.db" || cfg.Host != "db.example.com" {
+		t.Fatalf("Unexpected trimmed config: %+v", cfg)
+	}
+	if cfg.Port != "6543" || cfg.Name != "todo" || cfg.User != "app" || cfg.Password != "password" {
+		t.Fatalf("Unexpected trimmed PostgreSQL config: %+v", cfg)
+	}
+	if cfg.Region != "us-east-1" || cfg.SSLMode != "require" || cfg.SSLRootCert != "/tmp/rds.pem" || cfg.IAMAuth {
+		t.Fatalf("Unexpected trimmed AWS/TLS config: %+v", cfg)
+	}
+	if cfg.MaxOpenConns != 12 || cfg.MaxIdleConns != 4 {
+		t.Fatalf("Unexpected trimmed pool config: %+v", cfg)
+	}
+}
+
 // Test_DB_P_004B_ConfigFromEnvDoesNotAutoSelectRDSCAWithoutIAM verifies non-IAM
 // configs do not pin Postgres TLS to the default RDS CA bundle.
 func Test_DB_P_004B_ConfigFromEnvDoesNotAutoSelectRDSCAWithoutIAM(t *testing.T) {
@@ -552,6 +585,14 @@ func Test_DB_P_008_SmallHelpers(t *testing.T) {
 	if got := envOrDefault("TEST_ENV_OR_DEFAULT", "fallback"); got != "value" {
 		t.Errorf("Expected value, got %q", got)
 	}
+	t.Setenv("TEST_ENV_OR_DEFAULT", "  ")
+	if got := envOrDefault("TEST_ENV_OR_DEFAULT", "fallback"); got != "fallback" {
+		t.Errorf("Expected blank value to return fallback, got %q", got)
+	}
+	t.Setenv("TEST_ENV_OR_DEFAULT", " value ")
+	if got := envOrDefault("TEST_ENV_OR_DEFAULT", "fallback"); got != "value" {
+		t.Errorf("Expected trimmed value, got %q", got)
+	}
 
 	t.Setenv("TEST_BOOL", "not-bool")
 	if !envBoolOrDefault("TEST_BOOL", true) {
@@ -560,6 +601,10 @@ func Test_DB_P_008_SmallHelpers(t *testing.T) {
 	t.Setenv("TEST_BOOL", "false")
 	if envBoolOrDefault("TEST_BOOL", true) {
 		t.Error("Expected false bool value")
+	}
+	t.Setenv("TEST_BOOL", " false ")
+	if envBoolOrDefault("TEST_BOOL", true) {
+		t.Error("Expected trimmed false bool value")
 	}
 	t.Setenv("TEST_BOOL", "")
 	if !envBoolOrDefault("TEST_BOOL", true) {
@@ -577,6 +622,10 @@ func Test_DB_P_008_SmallHelpers(t *testing.T) {
 	t.Setenv("TEST_INT", "3")
 	if envIntOrDefault("TEST_INT", 7) != 3 {
 		t.Error("Expected parsed int value")
+	}
+	t.Setenv("TEST_INT", " 3 ")
+	if envIntOrDefault("TEST_INT", 7) != 3 {
+		t.Error("Expected trimmed int value")
 	}
 
 	if firstNonEmpty("", "first", "second") != "first" {
