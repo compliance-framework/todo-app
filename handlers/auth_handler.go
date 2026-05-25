@@ -294,7 +294,10 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		verifiedEmail = strings.ToLower(claims.Email)
 	}
 	if verifiedEmail != "" {
-		err = db.GetDB().Where("LOWER(email) = ?", verifiedEmail).First(&user).Error
+		err = db.GetDB().Where("email = ?", verifiedEmail).First(&user).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = db.GetDB().Where("LOWER(email) = ?", verifiedEmail).First(&user).Error
+		}
 		if err == nil {
 			return attachOIDCIdentity(user, issuer, claims)
 		}
@@ -302,7 +305,10 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 			return models.User{}, err
 		}
 
-		err = db.GetDB().Where("LOWER(username) = ?", verifiedEmail).First(&user).Error
+		err = db.GetDB().Where("username = ?", verifiedEmail).First(&user).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = db.GetDB().Where("LOWER(username) = ?", verifiedEmail).First(&user).Error
+		}
 		if err == nil {
 			if user.OIDCIssuer != nil || user.OIDCSubject != nil || (user.AuthProvider != "" && user.AuthProvider != "password") {
 				return models.User{}, errOIDCUsernameMatchNotPasswordUser
