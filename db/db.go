@@ -65,6 +65,8 @@ const (
 
 // ConfigFromEnv builds database config from environment variables.
 func ConfigFromEnv() Config {
+	iamAuth := envBoolOrDefault("DB_IAM_AUTH", true)
+
 	return Config{
 		Driver:       envOrDefault("DB_DRIVER", "sqlite"),
 		SQLitePath:   envOrDefault("DB_PATH", "todo_app.db"),
@@ -75,8 +77,8 @@ func ConfigFromEnv() Config {
 		Password:     os.Getenv("DB_PASSWORD"),
 		Region:       firstNonEmpty(os.Getenv("DB_REGION"), os.Getenv("AWS_REGION")),
 		SSLMode:      envOrDefault("DB_SSLMODE", "verify-full"),
-		SSLRootCert:  sslRootCertFromEnv(),
-		IAMAuth:      envBoolOrDefault("DB_IAM_AUTH", true),
+		SSLRootCert:  sslRootCertFromEnv(iamAuth),
+		IAMAuth:      iamAuth,
 		MaxOpenConns: envIntOrDefault("DB_MAX_OPEN_CONNS", defaultPostgresMaxOpenConns),
 		MaxIdleConns: envIntOrDefault("DB_MAX_IDLE_CONNS", defaultPostgresMaxIdleConns),
 	}
@@ -350,14 +352,17 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func sslRootCertFromEnv() string {
+func sslRootCertFromEnv(iamAuth bool) string {
 	if value := os.Getenv("DB_SSLROOTCERT"); value != "" {
 		return value
 	}
 	if value := os.Getenv("DB_RDS_CA_CERT_PATH"); value != "" {
 		return value
 	}
-	return defaultRDSCABundlePath()
+	if iamAuth {
+		return defaultRDSCABundlePath()
+	}
+	return ""
 }
 
 func defaultRDSCABundlePath() string {

@@ -134,6 +134,40 @@ func Test_DB_P_004_ConfigFromEnv(t *testing.T) {
 	}
 }
 
+// Test_DB_P_004B_ConfigFromEnvDoesNotAutoSelectRDSCAWithoutIAM verifies non-IAM
+// configs do not pin Postgres TLS to the default RDS CA bundle.
+func Test_DB_P_004B_ConfigFromEnvDoesNotAutoSelectRDSCAWithoutIAM(t *testing.T) {
+	originalPaths := rdsCABundlePaths
+	caPath := filepath.Join(t.TempDir(), "global-bundle.pem")
+	if err := os.WriteFile(caPath, []byte("test"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	rdsCABundlePaths = []string{caPath}
+	defer func() { rdsCABundlePaths = originalPaths }()
+
+	t.Setenv("DB_IAM_AUTH", "false")
+	t.Setenv("DB_SSLROOTCERT", "")
+	t.Setenv("DB_RDS_CA_CERT_PATH", "")
+
+	cfg := ConfigFromEnv()
+	if cfg.SSLRootCert != "" {
+		t.Fatalf("Expected SSLRootCert to be empty when IAM auth is disabled, got %q", cfg.SSLRootCert)
+	}
+
+	t.Setenv("DB_SSLROOTCERT", "/tmp/explicit-rds.pem")
+	cfg = ConfigFromEnv()
+	if cfg.SSLRootCert != "/tmp/explicit-rds.pem" {
+		t.Fatalf("Expected explicit DB_SSLROOTCERT to be used, got %q", cfg.SSLRootCert)
+	}
+
+	t.Setenv("DB_SSLROOTCERT", "")
+	t.Setenv("DB_RDS_CA_CERT_PATH", "/tmp/secondary-rds.pem")
+	cfg = ConfigFromEnv()
+	if cfg.SSLRootCert != "/tmp/secondary-rds.pem" {
+		t.Fatalf("Expected explicit DB_RDS_CA_CERT_PATH to be used, got %q", cfg.SSLRootCert)
+	}
+}
+
 // Test_DB_N_003_OpenDBUnsupportedDriver verifies unsupported drivers fail fast.
 func Test_DB_N_003_OpenDBUnsupportedDriver(t *testing.T) {
 	_, err := openDB(t.Context(), Config{Driver: "mysql"})
@@ -531,11 +565,11 @@ func Test_DB_P_008_SmallHelpers(t *testing.T) {
 
 	t.Setenv("DB_SSLROOTCERT", "/tmp/env-rds.pem")
 	t.Setenv("DB_RDS_CA_CERT_PATH", "/tmp/secondary-rds.pem")
-	if sslRootCertFromEnv() != "/tmp/env-rds.pem" {
+	if sslRootCertFromEnv(false) != "/tmp/env-rds.pem" {
 		t.Error("Expected DB_SSLROOTCERT to take precedence")
 	}
 	t.Setenv("DB_SSLROOTCERT", "")
-	if sslRootCertFromEnv() != "/tmp/secondary-rds.pem" {
+	if sslRootCertFromEnv(false) != "/tmp/secondary-rds.pem" {
 		t.Error("Expected DB_RDS_CA_CERT_PATH to be used when DB_SSLROOTCERT is empty")
 	}
 
@@ -550,8 +584,11 @@ func Test_DB_P_008_SmallHelpers(t *testing.T) {
 		t.Error("Expected defaultRDSCABundlePath to find existing CA bundle")
 	}
 	t.Setenv("DB_RDS_CA_CERT_PATH", "")
-	if sslRootCertFromEnv() != caPath {
+	if sslRootCertFromEnv(true) != caPath {
 		t.Error("Expected sslRootCertFromEnv to fall back to default CA bundle path")
+	}
+	if sslRootCertFromEnv(false) != "" {
+		t.Error("Expected sslRootCertFromEnv to skip default CA bundle path when IAM auth is disabled")
 	}
 	rdsCABundlePaths = []string{filepath.Join(t.TempDir(), "missing.pem")}
 	if defaultRDSCABundlePath() != "" {
