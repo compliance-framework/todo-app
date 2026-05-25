@@ -57,6 +57,8 @@ var randomReader = rand.Reader
 
 var (
 	errOIDCUserAlreadyLinked            = errors.New("user is already linked to a different OIDC identity")
+	errOIDCEmailMatchAmbiguous          = errors.New("email match is ambiguous")
+	errOIDCUsernameMatchAmbiguous       = errors.New("username match is ambiguous")
 	errOIDCUsernameMatchNotPasswordUser = errors.New("username match is not an unlinked password user")
 )
 
@@ -248,7 +250,7 @@ func OIDCCallback(c *gin.Context) {
 
 	user, err := upsertOIDCUser(oidcConfig.IssuerURL, claims)
 	if err != nil {
-		if errors.Is(err, errOIDCUserAlreadyLinked) || errors.Is(err, errOIDCUsernameMatchNotPasswordUser) {
+		if errors.Is(err, errOIDCUserAlreadyLinked) || errors.Is(err, errOIDCEmailMatchAmbiguous) || errors.Is(err, errOIDCUsernameMatchAmbiguous) || errors.Is(err, errOIDCUsernameMatchNotPasswordUser) {
 			c.JSON(http.StatusConflict, gin.H{"error": "OIDC account linking conflict"})
 			return
 		}
@@ -296,7 +298,7 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 	if verifiedEmail != "" {
 		err = db.GetDB().Where("email = ?", verifiedEmail).First(&user).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			err = db.GetDB().Where("LOWER(email) = ?", verifiedEmail).First(&user).Error
+			user, err = findUniqueCaseInsensitiveEmailUser(verifiedEmail)
 		}
 		if err == nil {
 			return attachOIDCIdentity(user, issuer, claims)
@@ -307,7 +309,7 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 
 		err = db.GetDB().Where("username = ?", verifiedEmail).First(&user).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			err = db.GetDB().Where("LOWER(username) = ?", verifiedEmail).First(&user).Error
+			user, err = findUniqueCaseInsensitiveUsernameUser(verifiedEmail)
 		}
 		if err == nil {
 			if user.OIDCIssuer != nil || user.OIDCSubject != nil || (user.AuthProvider != "" && user.AuthProvider != "password") {
@@ -347,6 +349,34 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		return models.User{}, err
 	}
 	return user, nil
+}
+
+func findUniqueCaseInsensitiveEmailUser(email string) (models.User, error) {
+	var users []models.User
+	if err := db.GetDB().Where("LOWER(email) = ?", email).Order("id").Limit(2).Find(&users).Error; err != nil {
+		return models.User{}, err
+	}
+	if len(users) == 0 {
+		return models.User{}, gorm.ErrRecordNotFound
+	}
+	if len(users) > 1 {
+		return models.User{}, errOIDCEmailMatchAmbiguous
+	}
+	return users[0], nil
+}
+
+func findUniqueCaseInsensitiveUsernameUser(username string) (models.User, error) {
+	var users []models.User
+	if err := db.GetDB().Where("LOWER(username) = ?", username).Order("id").Limit(2).Find(&users).Error; err != nil {
+		return models.User{}, err
+	}
+	if len(users) == 0 {
+		return models.User{}, gorm.ErrRecordNotFound
+	}
+	if len(users) > 1 {
+		return models.User{}, errOIDCUsernameMatchAmbiguous
+	}
+	return users[0], nil
 }
 
 func oidcOnlyPasswordHash() (string, error) {

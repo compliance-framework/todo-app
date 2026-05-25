@@ -1731,6 +1731,41 @@ func Test_REQ01_P_009A_UpsertOIDCUserAttachByEmailCaseInsensitive(t *testing.T) 
 	}
 }
 
+func Test_REQ01_N_027_UpsertOIDCUserRejectsAmbiguousCaseInsensitiveEmail(t *testing.T) {
+	setupTestDB(t)
+	first := createTestUser(t, "case-email-owner-one", "password123")
+	firstEmail := "User@Example.com"
+	first.Email = &firstEmail
+	if err := db.GetDB().Save(&first).Error; err != nil {
+		t.Fatalf("Failed to set first existing user email: %v", err)
+	}
+	second := createTestUser(t, "case-email-owner-two", "password123")
+	secondEmail := "USER@example.com"
+	second.Email = &secondEmail
+	if err := db.GetDB().Save(&second).Error; err != nil {
+		t.Fatalf("Failed to set second existing user email: %v", err)
+	}
+
+	_, err := upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{
+		Subject:       "subject-ambiguous-email",
+		Email:         " user@example.com ",
+		EmailVerified: true,
+	})
+	if !errors.Is(err, errOIDCEmailMatchAmbiguous) {
+		t.Fatalf("Expected ambiguous email error, got %v", err)
+	}
+
+	for _, existing := range []models.User{first, second} {
+		var reloaded models.User
+		if err := db.GetDB().First(&reloaded, existing.ID).Error; err != nil {
+			t.Fatalf("Failed to reload user %d: %v", existing.ID, err)
+		}
+		if reloaded.OIDCIssuer != nil || reloaded.OIDCSubject != nil {
+			t.Fatalf("Expected ambiguous email user %d to remain unlinked, got %+v", existing.ID, reloaded)
+		}
+	}
+}
+
 func Test_REQ01_P_009B_UpsertOIDCUserAttachByUsernameCaseInsensitive(t *testing.T) {
 	setupTestDB(t)
 	existing := createTestUser(t, "User@Example.com", "password123")
@@ -1751,6 +1786,31 @@ func Test_REQ01_P_009B_UpsertOIDCUserAttachByUsernameCaseInsensitive(t *testing.
 	}
 	if user.Email == nil || *user.Email != "user@example.com" {
 		t.Fatalf("Expected linked email to be normalized to lowercase, got %+v", user.Email)
+	}
+}
+
+func Test_REQ01_N_028_UpsertOIDCUserRejectsAmbiguousCaseInsensitiveUsername(t *testing.T) {
+	setupTestDB(t)
+	first := createTestUser(t, "User@Example.com", "password123")
+	second := createTestUser(t, "USER@example.com", "password123")
+
+	_, err := upsertOIDCUser("https://issuer.example.com", auth.OIDCClaims{
+		Subject:       "subject-ambiguous-username",
+		Email:         " user@example.com ",
+		EmailVerified: true,
+	})
+	if !errors.Is(err, errOIDCUsernameMatchAmbiguous) {
+		t.Fatalf("Expected ambiguous username error, got %v", err)
+	}
+
+	for _, existing := range []models.User{first, second} {
+		var reloaded models.User
+		if err := db.GetDB().First(&reloaded, existing.ID).Error; err != nil {
+			t.Fatalf("Failed to reload user %d: %v", existing.ID, err)
+		}
+		if reloaded.OIDCIssuer != nil || reloaded.OIDCSubject != nil {
+			t.Fatalf("Expected ambiguous username user %d to remain unlinked, got %+v", existing.ID, reloaded)
+		}
 	}
 }
 
