@@ -63,6 +63,8 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_014 | Test_REQ01_N_014_OIDCLoginNotConfigured | Negative | handlers/handlers_test.go | Verify OIDC login fails when disabled |
 | REQ01_N_014A | Test_REQ01_N_014A_OIDCLoginRandomStateError | Negative | handlers/handlers_test.go | Verify OIDC login handles random source failures |
 | REQ01_N_015 | Test_REQ01_N_015_OIDCCallbackInvalidState | Negative | handlers/handlers_test.go | Verify OIDC callback rejects invalid state |
+| REQ01_N_015A | Test_REQ01_N_015A_OIDCCallbackStateMismatchClearsVerifier | Negative | handlers/handlers_test.go | Verify OIDC callback clears stored PKCE verifier on state mismatch |
+| REQ01_N_015B | Test_REQ01_N_015B_OIDCCallbackMissingStoredCodeVerifier | Negative | handlers/handlers_test.go | Verify OIDC callback requires server-side PKCE verifier state |
 | REQ01_N_016 | Test_REQ01_N_016_OIDCCallbackMissingCode | Negative | handlers/handlers_test.go | Verify OIDC callback requires an auth code |
 | REQ01_N_017 | Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed | Negative | handlers/handlers_test.go | Verify OIDC callback handles token exchange failures |
 | REQ01_N_018 | Test_REQ01_N_018_OIDCCallbackMissingIDToken | Negative | handlers/handlers_test.go | Verify OIDC callback requires an ID token |
@@ -174,12 +176,12 @@ This document provides traceability from software requirements to test cases, en
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 65 | 28 | 29 | 8 |
+| REQ01 | 67 | 28 | 31 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
 | Infrastructure | 35 | 25 | 10 | 0 |
-| **Total** | **130** | **61** | **53** | **16** |
+| **Total** | **132** | **61** | **55** | **16** |
 
 ## 5. Code Coverage
 
@@ -187,9 +189,9 @@ This document provides traceability from software requirements to test cases, en
 |---------|----------|
 | auth | 98.0% |
 | db | 95.1% |
-| handlers | 94.0% |
+| handlers | 94.7% |
 | models | 100.0% |
-| **Total** | **95.0%** |
+| **Total** | **95.2%** |
 
 *Note: main.go is excluded from coverage as it contains only the application entry point.*
 
