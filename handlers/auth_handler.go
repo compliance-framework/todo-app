@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -297,10 +298,39 @@ func OIDCCallback(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, LoginResponse{
-		Token: token,
-		User:  user,
-	})
+	frontendURL := strings.TrimSpace(os.Getenv("OIDC_FRONTEND_URL"))
+	if frontendURL == "" {
+		c.JSON(http.StatusOK, LoginResponse{Token: token, User: user})
+		return
+	}
+
+	userJSON, err := json.Marshal(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode user"})
+		return
+	}
+
+	params := url.Values{}
+	params.Set("oidc_token", token)
+	params.Set("oidc_user", base64.RawURLEncoding.EncodeToString(userJSON))
+
+	redirectURL, err := url.Parse(frontendURL)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid frontend redirect URL"})
+		return
+	}
+	fragmentParams, err := url.ParseQuery(redirectURL.Fragment)
+	if err != nil {
+		fragmentParams = url.Values{}
+	}
+	for key, values := range params {
+		fragmentParams.Del(key)
+		for _, value := range values {
+			fragmentParams.Add(key, value)
+		}
+	}
+	redirectURL.Fragment = fragmentParams.Encode()
+	c.Redirect(http.StatusFound, redirectURL.String())
 }
 
 func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) {

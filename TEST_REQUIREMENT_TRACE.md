@@ -39,11 +39,13 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_P_010 | Test_REQ01_P_010_OIDCUtilities | Positive | handlers/handlers_test.go | Verify OIDC utility helpers |
 | REQ01_P_011 | Test_REQ01_P_011_OIDCLoginRedirect | Positive | handlers/handlers_test.go | Verify OIDC login redirects to provider |
 | REQ01_P_012 | Test_REQ01_P_012_OIDCCallbackSuccess | Positive | handlers/handlers_test.go | Verify OIDC callback creates user and returns app JWT |
+| REQ01_P_012A | Test_REQ01_P_012A_OIDCCallbackRedirectsToFrontend | Positive | handlers/handlers_test.go | Verify OIDC callback redirects to the configured frontend URL |
 | REQ01_P_013 | Test_REQ01_P_013_UpsertOIDCUserDoesNotAttachUnverifiedEmail | Positive | handlers/handlers_test.go | Verify unverified OIDC emails do not attach to existing users |
 | REQ01_P_014 | Test_REQ01_P_014_AttachOIDCIdentityRefusesRelink | Positive | handlers/handlers_test.go | Verify linked OIDC accounts cannot be re-linked to another identity |
 | REQ01_P_014B | Test_REQ01_P_014B_AttachOIDCIdentityRejectsStaleConcurrentRelink | Positive | handlers/handlers_test.go | Verify stale OIDC account linking updates cannot overwrite an existing link |
 | REQ01_P_014C | Test_REQ01_P_014C_AttachOIDCIdentityNormalizesEmptyAuthProvider | Positive | handlers/handlers_test.go | Verify OIDC linking normalizes legacy empty auth providers |
 | REQ01_P_014D | Test_REQ01_P_014D_AttachOIDCIdentityMapsDuplicateIdentityToConflict | Positive | handlers/handlers_test.go | Verify duplicate OIDC identity updates map to linking conflicts |
+| REQ01_P_015 | Test_REQ01_P_015_IsUniqueConstraintErrorPostgresCode | Positive | handlers/handlers_test.go | Verify PostgreSQL unique constraint codes are detected |
 | Auth_P_001 | Test_Auth_P_001_ConfigureJWTSecretFromEnv | Positive | auth/auth_test.go | Verify JWT secret is read from environment |
 | Auth_P_002 | Test_Auth_P_002_ConfigureJWTSecretDevelopmentFallback | Positive | auth/auth_test.go | Verify development JWT secret fallback |
 | Auth_P_003 | Test_Auth_P_003_IsDevelopmentModeFallbacks | Positive | auth/auth_test.go | Verify development mode detection |
@@ -79,6 +81,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_019 | Test_REQ01_N_019_OIDCCallbackInvalidIDToken | Negative | handlers/handlers_test.go | Verify OIDC callback verifies ID tokens |
 | REQ01_N_020 | Test_REQ01_N_020_OIDCCallbackProviderConfigError | Negative | handlers/handlers_test.go | Verify OIDC callback handles provider config errors |
 | REQ01_N_021 | Test_REQ01_N_021_OIDCCallbackInvalidClaims | Negative | handlers/handlers_test.go | Verify OIDC callback handles invalid claims |
+| REQ01_N_021A | Test_REQ01_N_021A_OIDCCallbackMissingSubject | Negative | handlers/handlers_test.go | Verify OIDC callback rejects claims without a subject |
 | REQ01_N_022 | Test_REQ01_N_022_OIDCCallbackAccountLinkingConflict | Negative | handlers/handlers_test.go | Verify OIDC callback maps account-linking conflicts to 409 |
 | REQ01_N_023 | Test_REQ01_N_023_OIDCCallbackInvalidNonce | Negative | handlers/handlers_test.go | Verify OIDC callback rejects ID tokens with an invalid nonce |
 | REQ01_N_027 | Test_REQ01_N_027_UpsertOIDCUserRejectsAmbiguousCaseInsensitiveEmail | Negative | handlers/handlers_test.go | Verify ambiguous case-insensitive OIDC email matches are rejected |
@@ -187,12 +190,12 @@ This document provides traceability from software requirements to test cases, en
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 69 | 30 | 31 | 8 |
+| REQ01 | 67 | 27 | 32 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
-| Infrastructure | 36 | 26 | 10 | 0 |
-| **Total** | **135** | **64** | **55** | **16** |
+| Infrastructure | 49 | 36 | 13 | 0 |
+| **Total** | **146** | **71** | **59** | **16** |
 
 ## 5. Code Coverage
 

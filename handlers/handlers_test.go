@@ -23,6 +23,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/oauth2"
 )
 
@@ -1471,6 +1472,58 @@ func Test_REQ01_P_012_OIDCCallbackSuccess(t *testing.T) {
 	}
 }
 
+func Test_REQ01_P_012A_OIDCCallbackRedirectsToFrontend(t *testing.T) {
+	setupTestDB(t)
+	key := mustGenerateRSAKey(t)
+	var issuer string
+	var oidcClient *http.Client
+	issuer, oidcClient = installTestOIDCProvider(t, testOIDCProvider{
+		key: key,
+		tokenBody: func() string {
+			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
+				mustSignIDToken(t, key, issuer, "client-id", "subject-redirect", "redirect@example.com") + `"}`
+		},
+	})
+	setTestOIDCEnv(t, issuer)
+	t.Setenv("OIDC_FRONTEND_URL", "https://frontend.example.com/auth/callback?existing=1#view=login")
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("Expected status %d, got %d with body %s", http.StatusFound, w.Code, w.Body.String())
+	}
+	location := w.Header().Get("Location")
+	if !strings.HasPrefix(location, "https://frontend.example.com/auth/callback?existing=1#") {
+		t.Fatalf("Unexpected redirect location: %s", location)
+	}
+	redirectURL, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("Parse redirect location: %v", err)
+	}
+	if redirectURL.Query().Get("existing") != "1" {
+		t.Fatalf("Expected existing query value to be preserved in redirect location: %s", location)
+	}
+	if redirectURL.Query().Get("oidc_token") != "" || redirectURL.Query().Get("oidc_user") != "" {
+		t.Fatalf("Expected token and user to be omitted from redirect query: %s", location)
+	}
+	fragmentParams, err := url.ParseQuery(redirectURL.Fragment)
+	if err != nil {
+		t.Fatalf("Parse redirect fragment: %v", err)
+	}
+	if fragmentParams.Get("view") != "login" {
+		t.Fatalf("Expected existing fragment value to be preserved in redirect location: %s", location)
+	}
+	if fragmentParams.Get("oidc_token") == "" || fragmentParams.Get("oidc_user") == "" {
+		t.Fatalf("Expected token and user in redirect fragment: %s", location)
+	}
+}
+
 // Test_REQ01_N_020_OIDCCallbackProviderConfigError verifies provider config errors.
 func Test_REQ01_N_020_OIDCCallbackProviderConfigError(t *testing.T) {
 	t.Setenv("OIDC_ISSUER_URL", "://bad issuer")
@@ -1508,6 +1561,41 @@ func Test_REQ01_N_021_OIDCCallbackInvalidClaims(t *testing.T) {
 					"email": 123,
 					"exp":   time.Now().Add(time.Hour).Unix(),
 					"iat":   time.Now().Unix(),
+				}) + `"}`
+		},
+	})
+	setTestOIDCEnv(t, issuer)
+
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewOIDCRequest(t, oidcClient, "GET", "/api/auth/oidc/callback?state=state&code=code", nil)
+	req.AddCookie(testOIDCStateCookie(t, "state", "nonce"))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func Test_REQ01_N_021A_OIDCCallbackMissingSubject(t *testing.T) {
+	setupTestDB(t)
+	key := mustGenerateRSAKey(t)
+	var issuer string
+	var oidcClient *http.Client
+	issuer, oidcClient = installTestOIDCProvider(t, testOIDCProvider{
+		key: key,
+		tokenBody: func() string {
+			return `{"access_token":"access","token_type":"Bearer","id_token":"` +
+				mustSignIDTokenClaims(t, key, jwt.MapClaims{
+					"iss":            issuer,
+					"aud":            "client-id",
+					"email":          "missing-subject@example.com",
+					"email_verified": true,
+					"nonce":          "nonce",
+					"exp":            time.Now().Add(time.Hour).Unix(),
+					"iat":            time.Now().Unix(),
 				}) + `"}`
 		},
 	})
@@ -2418,6 +2506,13 @@ func Test_REQ01_E_008_AttachOIDCIdentityDBError(t *testing.T) {
 	_, err = attachOIDCIdentity(user, "https://issuer.example.com", auth.OIDCClaims{Subject: "subject"})
 	if err == nil {
 		t.Error("Expected DB error")
+	}
+}
+
+func Test_REQ01_P_015_IsUniqueConstraintErrorPostgresCode(t *testing.T) {
+	err := &pgconn.PgError{Code: "23505"}
+	if !isUniqueConstraintError(err) {
+		t.Error("Expected PostgreSQL unique violation to be treated as unique constraint error")
 	}
 }
 

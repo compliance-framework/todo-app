@@ -66,12 +66,49 @@ const openCount = computed(() => todos.value.length - completedCount.value);
 const isAuthenticated = computed(() => Boolean(token.value && currentUser.value));
 
 onMounted(() => {
-  void loadTodos();
+  const handledOIDCRedirect = handleOIDCRedirect();
+  void loadTodos({ preserveMessages: handledOIDCRedirect });
 });
 
-async function loadTodos() {
+function handleOIDCRedirect() {
+  const hashParams = new URLSearchParams(window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "");
+  const searchParams = new URLSearchParams(window.location.search);
+  const params = hashParams.has("oidc_token") && hashParams.has("oidc_user") ? hashParams : searchParams;
+  const oidcToken = params.get("oidc_token");
+  const oidcUser = params.get("oidc_user");
+  if (!oidcToken || !oidcUser) return false;
+
+  try {
+    const user = decodeBase64UrlJSON<User>(oidcUser);
+    setSession(oidcToken, user);
+    statusMessage.value = "Signed in with provider.";
+  } catch {
+    errorMessage.value = "OIDC sign-in failed: could not read session.";
+  }
+
+  searchParams.delete("oidc_token");
+  searchParams.delete("oidc_user");
+  hashParams.delete("oidc_token");
+  hashParams.delete("oidc_user");
+  const remainingSearch = searchParams.toString();
+  const remainingHash = hashParams.toString();
+  const cleanUrl = `${window.location.pathname}${remainingSearch ? `?${remainingSearch}` : ""}${remainingHash ? `#${remainingHash}` : ""}`;
+  window.history.replaceState({}, "", cleanUrl);
+  return true;
+}
+
+function decodeBase64UrlJSON<T>(value: string): T {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes)) as T;
+}
+
+async function loadTodos(options: { preserveMessages?: boolean } = {}) {
   loadingTodos.value = true;
-  clearMessages();
+  if (!options.preserveMessages) {
+    clearMessages();
+  }
 
   try {
     todos.value = await api.listTodos();
@@ -357,11 +394,11 @@ function readStoredSession() {
           <Card class="p-5">
             <template v-if="isAuthenticated && currentUser">
               <div class="flex items-start justify-between gap-4">
-                <div>
+                <div class="min-w-0 flex-1">
                   <p class="text-sm text-muted-foreground">Signed in as</p>
-                  <p class="mt-1 text-lg font-semibold">{{ currentUser.username }}</p>
+                  <p class="mt-1 break-all text-lg font-semibold">{{ currentUser.username }}</p>
                 </div>
-                <Button variant="outline" size="sm" @click="signOut">
+                <Button class="shrink-0" variant="outline" size="sm" @click="signOut">
                   <LogOut class="mr-2 h-4 w-4" />
                   Sign out
                 </Button>
@@ -369,24 +406,6 @@ function readStoredSession() {
             </template>
 
             <template v-else>
-              <div class="mb-5 flex rounded-md border border-border bg-muted p-1">
-                <button
-                  class="h-9 flex-1 rounded-sm text-sm font-medium transition-colors"
-                  :class="authMode === 'login' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'"
-                  type="button"
-                  @click="authMode = 'login'"
-                >
-                  Login
-                </button>
-                <button
-                  class="h-9 flex-1 rounded-sm text-sm font-medium transition-colors"
-                  :class="authMode === 'register' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'"
-                  type="button"
-                  @click="authMode = 'register'"
-                >
-                  Register
-                </button>
-              </div>
 
               <form class="space-y-4" @submit.prevent="submitAuth">
                 <div class="space-y-2">
@@ -443,7 +462,7 @@ function readStoredSession() {
         <section class="space-y-4">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 class="text-xl font-semibold">All todos</h2>
-            <Button variant="outline" size="sm" :disabled="loadingTodos" @click="loadTodos">
+            <Button variant="outline" size="sm" :disabled="loadingTodos" @click="loadTodos()">
               <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': loadingTodos }" />
               Refresh
             </Button>
