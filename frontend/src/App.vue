@@ -88,8 +88,11 @@ function handleOIDCRedirect() {
 
   searchParams.delete("oidc_token");
   searchParams.delete("oidc_user");
+  hashParams.delete("oidc_token");
+  hashParams.delete("oidc_user");
   const remainingSearch = searchParams.toString();
-  const cleanUrl = `${window.location.pathname}${remainingSearch ? `?${remainingSearch}` : ""}`;
+  const remainingHash = hashParams.toString();
+  const cleanUrl = `${window.location.pathname}${remainingSearch ? `?${remainingSearch}` : ""}${remainingHash ? `#${remainingHash}` : ""}`;
   window.history.replaceState({}, "", cleanUrl);
   return true;
 }
