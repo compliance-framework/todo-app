@@ -133,6 +133,7 @@ This document provides traceability from software requirements to test cases, en
 | DB_P_002 | Test_DB_P_002_GetDBReturnsInstance | Positive | db/db_test.go | Verify GetDB returns the database instance |
 | DB_P_003 | Test_DB_P_003_SetDB | Positive | db/db_test.go | Verify SetDB sets the database instance |
 | DB_P_004 | Test_DB_P_004_ConfigFromEnv | Positive | db/db_test.go | Verify database config is read from environment |
+| DB_P_004B | Test_DB_P_004B_ConfigFromEnvDoesNotAutoSelectRDSCAWithoutIAM | Positive | db/db_test.go | Verify non-IAM database config does not auto-select the RDS CA bundle |
 | DB_P_005 | Test_DB_P_005_PostgresDSN | Positive | db/db_test.go | Verify PostgreSQL DSN construction |
 | DB_P_006 | Test_DB_P_006_BuildRDSAuthToken | Positive | db/db_test.go | Verify RDS IAM auth token signing |
 | DB_P_007 | Test_DB_P_007_PostgresOpeners | Positive | db/db_test.go | Verify PostgreSQL openers initialize connections |
@@ -172,8 +173,8 @@ This document provides traceability from software requirements to test cases, en
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
-| Infrastructure | 34 | 24 | 10 | 0 |
-| **Total** | **124** | **58** | **50** | **16** |
+| Infrastructure | 35 | 25 | 10 | 0 |
+| **Total** | **125** | **59** | **50** | **16** |
 
 ## 5. Code Coverage
 
