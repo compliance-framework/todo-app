@@ -1566,6 +1566,12 @@ func Test_REQ01_P_008_UpsertOIDCUserCreateAndFind(t *testing.T) {
 	if user.ID == 0 || user.Username != claims.Email || user.Email == nil || *user.Email != claims.Email {
 		t.Fatalf("Unexpected OIDC user: %+v", user)
 	}
+	if user.Password == "" || user.Password == "OIDC_LOGIN_ONLY" || !strings.HasPrefix(user.Password, "$2") {
+		t.Fatalf("Expected OIDC-only password to be stored as a bcrypt hash, got %q", user.Password)
+	}
+	if auth.CheckPasswordHash("OIDC_LOGIN_ONLY", user.Password) {
+		t.Fatal("OIDC-only password hash must not authenticate the previous sentinel value")
+	}
 
 	sameUser, err := upsertOIDCUser("https://issuer.example.com", claims)
 	if err != nil {

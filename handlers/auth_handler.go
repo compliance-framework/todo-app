@@ -313,6 +313,11 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		}
 	}
 
+	passwordHash, err := oidcOnlyPasswordHash()
+	if err != nil {
+		return models.User{}, err
+	}
+
 	usernameClaims := claims
 	if claims.EmailVerified {
 		usernameClaims.Email = verifiedEmail
@@ -321,7 +326,7 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 	}
 	user = models.User{
 		Username:     oidcUsername(issuer, usernameClaims),
-		Password:     "OIDC_LOGIN_ONLY", // #nosec G101 -- non-secret sentinel; OIDC users do not use password login.
+		Password:     passwordHash,
 		Email:        stringPointerOrNil(verifiedEmail),
 		OIDCIssuer:   &issuer,
 		OIDCSubject:  &claims.Subject,
@@ -335,6 +340,14 @@ func upsertOIDCUser(issuer string, claims auth.OIDCClaims) (models.User, error) 
 		return models.User{}, err
 	}
 	return user, nil
+}
+
+func oidcOnlyPasswordHash() (string, error) {
+	randomPassword := make([]byte, 32)
+	if _, err := rand.Read(randomPassword); err != nil {
+		return "", err
+	}
+	return auth.HashPassword(base64.RawURLEncoding.EncodeToString(randomPassword))
 }
 
 var createOIDCUser = func(user *models.User) error {
