@@ -82,15 +82,24 @@ func Test_Main_P_002B_AuthConfig(t *testing.T) {
 // Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic verifies panic responses are audited.
 func Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
 	originalStdout := os.Stdout
-	stdoutReader, stdoutWriter, err := os.Pipe()
+	defer func() {
+		os.Stdout = originalStdout
+	}()
+	readCapturedStdout := func(stdoutReader *os.File) []byte {
+		t.Helper()
+		defer stdoutReader.Close()
+		logs, err := io.ReadAll(stdoutReader)
+		if err != nil {
+			t.Fatalf("Failed to read captured stdout: %v", err)
+		}
+		return logs
+	}
+
+	firstStdoutReader, firstStdoutWriter, err := os.Pipe()
 	if err != nil {
 		t.Fatalf("Failed to capture stdout: %v", err)
 	}
-	os.Stdout = stdoutWriter
-	defer func() {
-		os.Stdout = originalStdout
-		stdoutReader.Close()
-	}()
+	os.Stdout = firstStdoutWriter
 
 	router := SetupRouter()
 	router.GET("/panic", func(c *gin.Context) {
@@ -104,13 +113,10 @@ func Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, w.Code)
 	}
-	if err := stdoutWriter.Close(); err != nil {
+	if err := firstStdoutWriter.Close(); err != nil {
 		t.Fatalf("Failed to close stdout writer: %v", err)
 	}
-	logs, err := io.ReadAll(stdoutReader)
-	if err != nil {
-		t.Fatalf("Failed to read captured stdout: %v", err)
-	}
+	logs := readCapturedStdout(firstStdoutReader)
 	logOutput := string(logs)
 	if !strings.Contains(logOutput, `"method":"GET"`) ||
 		!strings.Contains(logOutput, `"path":"/panic"`) ||
@@ -119,11 +125,11 @@ func Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
 		t.Errorf("Expected raw JSON audit log on stdout, got %q", logOutput)
 	}
 
-	stdoutReader, stdoutWriter, err = os.Pipe()
+	secondStdoutReader, secondStdoutWriter, err := os.Pipe()
 	if err != nil {
 		t.Fatalf("Failed to capture stdout: %v", err)
 	}
-	os.Stdout = stdoutWriter
+	os.Stdout = secondStdoutWriter
 	router.GET("/audit-user", func(c *gin.Context) {
 		c.Set("user_id", uint(42))
 		c.Status(http.StatusNoContent)
@@ -135,13 +141,10 @@ func Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
 	if w.Code != http.StatusNoContent {
 		t.Errorf("Expected status %d, got %d", http.StatusNoContent, w.Code)
 	}
-	if err := stdoutWriter.Close(); err != nil {
+	if err := secondStdoutWriter.Close(); err != nil {
 		t.Fatalf("Failed to close stdout writer: %v", err)
 	}
-	logs, err = io.ReadAll(stdoutReader)
-	if err != nil {
-		t.Fatalf("Failed to read captured stdout: %v", err)
-	}
+	logs = readCapturedStdout(secondStdoutReader)
 	logOutput = string(logs)
 	if !strings.Contains(logOutput, `"path":"/audit-user"`) ||
 		!strings.Contains(logOutput, `"user_id":42`) ||
