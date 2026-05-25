@@ -1771,7 +1771,7 @@ func Test_REQ01_P_008B_UpsertOIDCUserRetriesAfterCreateRace(t *testing.T) {
 	}
 }
 
-func Test_REQ01_P_008C_UpsertOIDCUserRetriesEmailAttachAfterCreateRace(t *testing.T) {
+func Test_REQ01_P_008E_UpsertOIDCUserRetriesEmailAttachAfterCreateRace(t *testing.T) {
 	setupTestDB(t)
 
 	issuer := "https://issuer.example.com"
@@ -1801,7 +1801,7 @@ func Test_REQ01_P_008C_UpsertOIDCUserRetriesEmailAttachAfterCreateRace(t *testin
 	}
 }
 
-func Test_REQ01_P_008D_UpsertOIDCUserRetriesUsernameAttachAfterCreateRace(t *testing.T) {
+func Test_REQ01_P_008F_UpsertOIDCUserRetriesUsernameAttachAfterCreateRace(t *testing.T) {
 	setupTestDB(t)
 
 	issuer := "https://issuer.example.com"
