@@ -1,0 +1,22 @@
+alb_certificate_arn = "arn:aws:acm:eu-west-2:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+
+# Required: choose who can reach the public ALB on HTTPS.
+# Use ["0.0.0.0/0"] only when intentionally opening HTTPS to the internet.
+allowed_https_cidr_blocks = ["203.0.113.0/24"]
+
+release_tag = "v1.0.0"
+
+# Required: replace these placeholders with the pinned cosign binary checksums matching cosign_version before deploying.
+cosign_linux_amd64_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+cosign_linux_arm64_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+
+# Optional overrides.
+# github_repository              = "ContainerSolutions/todo-app"
+# release_artifact_name          = "todo-app-linux-amd64"
+# release_signature_bundle_name  = "todo-app-linux-amd64.bundle"
+# For ARM instance types such as t4g.*, change all three values together:
+# ec2_ami_architecture           = "arm64"
+# release_artifact_name          = "todo-app-linux-arm64"
+# release_signature_bundle_name  = "todo-app-linux-arm64.bundle"
+# nat_gateway_mode               = "single" # Lower cost, less available than the default "per_az".
+# ticket_tag                     = "BCH-1283"
