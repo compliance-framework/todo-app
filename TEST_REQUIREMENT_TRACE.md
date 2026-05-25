@@ -25,6 +25,33 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_P_004 | Test_REQ01_P_004_GetUserIDFromContextSuccess | Positive | auth/auth_test.go | Verify user ID extraction from context |
 | REQ01_P_005 | Test_REQ01_P_005_LoginSuccess | Positive | handlers/handlers_test.go | Verify user can login with valid credentials |
 | REQ01_P_006 | Test_REQ01_P_006_RegisterSuccess | Positive | handlers/handlers_test.go | Verify user can register a new account |
+| REQ01_P_007 | Test_REQ01_P_007_AuthConfig | Positive | handlers/handlers_test.go | Verify auth config reports OIDC availability |
+| REQ01_P_008 | Test_REQ01_P_008_UpsertOIDCUserCreateAndFind | Positive | handlers/handlers_test.go | Verify OIDC users are created and reused |
+| REQ01_P_008A | Test_REQ01_P_008A_UpsertOIDCUserBackfillsVerifiedEmail | Positive | handlers/handlers_test.go | Verify OIDC users backfill verified email on later login |
+| REQ01_P_008B | Test_REQ01_P_008B_UpsertOIDCUserRetriesAfterCreateRace | Positive | handlers/handlers_test.go | Verify OIDC upsert retries after a duplicate create race |
+| REQ01_P_008C | Test_REQ01_P_008C_UpsertOIDCUserTreatsOverlongEmailAsAbsent | Positive | handlers/handlers_test.go | Verify OIDC upsert ignores overlong verified email claims |
+| REQ01_P_008D | Test_REQ01_P_008D_UpsertOIDCUserStoresLongEmailButDoesNotUseItAsUsername | Positive | handlers/handlers_test.go | Verify OIDC upsert stores long emails without reusing them as usernames |
+| REQ01_P_008E | Test_REQ01_P_008E_UpsertOIDCUserRetriesEmailAttachAfterCreateRace | Positive | handlers/handlers_test.go | Verify OIDC upsert retries email attachment after a create race |
+| REQ01_P_008F | Test_REQ01_P_008F_UpsertOIDCUserDoesNotAttachUsernameAfterCreateRace | Positive | handlers/handlers_test.go | Verify OIDC upsert does not attach by username after a create race |
+| REQ01_P_009 | Test_REQ01_P_009_UpsertOIDCUserAttachByEmail | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by email |
+| REQ01_P_009A | Test_REQ01_P_009A_UpsertOIDCUserAttachByEmailCaseInsensitive | Positive | handlers/handlers_test.go | Verify OIDC identity attaches by email case-insensitively |
+| REQ01_P_009B | Test_REQ01_P_009B_UpsertOIDCUserDoesNotAttachByUsernameCaseInsensitive | Positive | handlers/handlers_test.go | Verify OIDC identity does not attach by username case-insensitively |
+| REQ01_P_010 | Test_REQ01_P_010_OIDCUtilities | Positive | handlers/handlers_test.go | Verify OIDC utility helpers |
+| REQ01_P_011 | Test_REQ01_P_011_OIDCLoginRedirect | Positive | handlers/handlers_test.go | Verify OIDC login redirects to provider |
+| REQ01_P_012 | Test_REQ01_P_012_OIDCCallbackSuccess | Positive | handlers/handlers_test.go | Verify OIDC callback creates user and returns app JWT |
+| REQ01_P_013 | Test_REQ01_P_013_UpsertOIDCUserDoesNotAttachUnverifiedEmail | Positive | handlers/handlers_test.go | Verify unverified OIDC emails do not attach to existing users |
+| REQ01_P_014 | Test_REQ01_P_014_AttachOIDCIdentityRefusesRelink | Positive | handlers/handlers_test.go | Verify linked OIDC accounts cannot be re-linked to another identity |
+| REQ01_P_014B | Test_REQ01_P_014B_AttachOIDCIdentityRejectsStaleConcurrentRelink | Positive | handlers/handlers_test.go | Verify stale OIDC account linking updates cannot overwrite an existing link |
+| REQ01_P_014C | Test_REQ01_P_014C_AttachOIDCIdentityNormalizesEmptyAuthProvider | Positive | handlers/handlers_test.go | Verify OIDC linking normalizes legacy empty auth providers |
+| REQ01_P_014D | Test_REQ01_P_014D_AttachOIDCIdentityMapsDuplicateIdentityToConflict | Positive | handlers/handlers_test.go | Verify duplicate OIDC identity updates map to linking conflicts |
+| Auth_P_001 | Test_Auth_P_001_ConfigureJWTSecretFromEnv | Positive | auth/auth_test.go | Verify JWT secret is read from environment |
+| Auth_P_002 | Test_Auth_P_002_ConfigureJWTSecretDevelopmentFallback | Positive | auth/auth_test.go | Verify development JWT secret fallback |
+| Auth_P_003 | Test_Auth_P_003_IsDevelopmentModeFallbacks | Positive | auth/auth_test.go | Verify development mode detection |
+| Auth_P_004 | Test_Auth_P_004_OIDCConfigFromEnv | Positive | auth/auth_test.go | Verify OIDC config is read from environment |
+| Auth_P_005 | Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess | Positive | auth/auth_test.go | Verify OIDC provider discovery configures OAuth2 |
+| Auth_P_006 | Test_Auth_P_006_OIDCConfigOAuth2ConfigConcurrentDiscoverySingleflight | Positive | auth/auth_test.go | Verify concurrent OIDC provider discovery is deduplicated |
+| Auth_P_007 | Test_Auth_P_007_CookieSigningSecretFromEnv | Positive | auth/auth_test.go | Verify cookie signing secrets prefer the primary env var and fall back to JWT_SECRET |
+| Auth_P_008 | Test_Auth_P_008_CookieSigningSecretDevelopmentFallback | Positive | auth/auth_test.go | Verify cookie signing secrets use the development fallback in test mode |
 | REQ01_N_001 | Test_REQ01_N_001_CheckWrongPassword | Negative | auth/auth_test.go | Verify wrong password fails check |
 | REQ01_N_002 | Test_REQ01_N_002_ValidateInvalidToken | Negative | auth/auth_test.go | Verify invalid token is rejected |
 | REQ01_N_003 | Test_REQ01_N_003_AuthMiddlewareNoHeader | Negative | auth/auth_test.go | Verify middleware rejects missing header |
@@ -33,16 +60,40 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_006 | Test_REQ01_N_006_AuthMiddlewareMalformedHeader | Negative | auth/auth_test.go | Verify middleware rejects malformed header |
 | REQ01_N_007 | Test_REQ01_N_007_GetUserIDFromContextMissing | Negative | auth/auth_test.go | Verify missing user ID returns false |
 | REQ01_N_008 | Test_REQ01_N_008_GetUserIDFromContextInvalidType | Negative | auth/auth_test.go | Verify invalid user ID type returns false |
+| REQ01_N_008A | Test_REQ01_N_008A_UpsertOIDCUserBackfillEmailConflict | Negative | handlers/handlers_test.go | Verify OIDC verified email backfill conflicts map to account linking conflicts |
+| REQ01_N_008E | Test_REQ01_N_008E_UpsertOIDCUserUsernameCreateRaceReturnsCreateError | Negative | handlers/handlers_test.go | Verify OIDC upsert create races return username conflict errors |
 | REQ01_N_009 | Test_REQ01_N_009_LoginInvalidPassword | Negative | handlers/handlers_test.go | Verify login fails with wrong password |
 | REQ01_N_010 | Test_REQ01_N_010_LoginNonexistentUser | Negative | handlers/handlers_test.go | Verify login fails for non-existent user |
 | REQ01_N_011 | Test_REQ01_N_011_RegisterDuplicateUsername | Negative | handlers/handlers_test.go | Verify registration fails for duplicate username |
 | REQ01_N_012 | Test_REQ01_N_012_LoginInvalidJSON | Negative | handlers/handlers_test.go | Verify login fails with invalid JSON |
 | REQ01_N_013 | Test_REQ01_N_013_RegisterInvalidJSON | Negative | handlers/handlers_test.go | Verify registration fails with invalid JSON |
+| REQ01_N_014 | Test_REQ01_N_014_OIDCLoginNotConfigured | Negative | handlers/handlers_test.go | Verify OIDC login fails when disabled |
+| REQ01_N_014A | Test_REQ01_N_014A_OIDCLoginRandomStateError | Negative | handlers/handlers_test.go | Verify OIDC login handles random source failures |
+| REQ01_N_015 | Test_REQ01_N_015_OIDCCallbackInvalidState | Negative | handlers/handlers_test.go | Verify OIDC callback rejects invalid state |
+| REQ01_N_015A | Test_REQ01_N_015A_OIDCCallbackStateMismatchClearsVerifier | Negative | handlers/handlers_test.go | Verify OIDC callback clears stored PKCE verifier on state mismatch |
+| REQ01_N_015B | Test_REQ01_N_015B_OIDCCallbackMissingStoredCodeVerifier | Negative | handlers/handlers_test.go | Verify OIDC callback requires server-side PKCE verifier state |
+| REQ01_N_015C | Test_REQ01_N_015C_OIDCCallbackMalformedStateCookieClearsCookie | Negative | handlers/handlers_test.go | Verify OIDC callback clears malformed state cookies |
+| REQ01_N_016 | Test_REQ01_N_016_OIDCCallbackMissingCode | Negative | handlers/handlers_test.go | Verify OIDC callback requires an auth code |
+| REQ01_N_017 | Test_REQ01_N_017_OIDCCallbackTokenExchangeFailed | Negative | handlers/handlers_test.go | Verify OIDC callback handles token exchange failures |
+| REQ01_N_018 | Test_REQ01_N_018_OIDCCallbackMissingIDToken | Negative | handlers/handlers_test.go | Verify OIDC callback requires an ID token |
+| REQ01_N_019 | Test_REQ01_N_019_OIDCCallbackInvalidIDToken | Negative | handlers/handlers_test.go | Verify OIDC callback verifies ID tokens |
+| REQ01_N_020 | Test_REQ01_N_020_OIDCCallbackProviderConfigError | Negative | handlers/handlers_test.go | Verify OIDC callback handles provider config errors |
+| REQ01_N_021 | Test_REQ01_N_021_OIDCCallbackInvalidClaims | Negative | handlers/handlers_test.go | Verify OIDC callback handles invalid claims |
+| REQ01_N_022 | Test_REQ01_N_022_OIDCCallbackAccountLinkingConflict | Negative | handlers/handlers_test.go | Verify OIDC callback maps account-linking conflicts to 409 |
+| REQ01_N_023 | Test_REQ01_N_023_OIDCCallbackInvalidNonce | Negative | handlers/handlers_test.go | Verify OIDC callback rejects ID tokens with an invalid nonce |
+| REQ01_N_027 | Test_REQ01_N_027_UpsertOIDCUserRejectsAmbiguousCaseInsensitiveEmail | Negative | handlers/handlers_test.go | Verify ambiguous case-insensitive OIDC email matches are rejected |
+| REQ01_N_028 | Test_REQ01_N_028_UpsertOIDCUserIgnoresAmbiguousCaseInsensitiveUsername | Negative | handlers/handlers_test.go | Verify ambiguous case-insensitive OIDC username matches are ignored |
+| Auth_N_001 | Test_Auth_N_001_ConfigureJWTSecretProductionMissing | Negative | auth/auth_test.go | Verify JWT secret is required outside development |
+| Auth_N_002 | Test_Auth_N_002_OIDCConfigOAuth2ConfigUnconfigured | Negative | auth/auth_test.go | Verify unconfigured OIDC config returns error |
+| Auth_N_003 | Test_Auth_N_003_CookieSigningSecretProductionMissing | Negative | auth/auth_test.go | Verify cookie signing secrets are required outside development |
 | REQ01_E_001 | Test_REQ01_E_001_TokenExpiry | Edge | auth/auth_test.go | Verify expired tokens are rejected |
 | REQ01_E_002 | Test_REQ01_E_002_RegisterDBError | Edge | handlers/handlers_test.go | Verify Register handles DB error on create |
 | REQ01_E_003 | Test_REQ01_E_003_LoginDBError | Edge | handlers/handlers_test.go | Verify Login handles DB error |
 | REQ01_E_004 | Test_REQ01_E_004_RegisterHashPasswordError | Edge | handlers/handlers_test.go | Verify Register handles hash password error |
 | REQ01_E_005 | Test_REQ01_E_005_LoginGenerateTokenError | Edge | handlers/handlers_test.go | Verify Login handles token generation error |
+| REQ01_E_006 | Test_REQ01_E_006_OIDCCallbackGenerateTokenError | Edge | handlers/handlers_test.go | Verify OIDC callback handles app token generation errors |
+| REQ01_E_007 | Test_REQ01_E_007_UpsertOIDCUserDBError | Edge | handlers/handlers_test.go | Verify OIDC upsert handles DB errors |
+| REQ01_E_008 | Test_REQ01_E_008_AttachOIDCIdentityDBError | Edge | handlers/handlers_test.go | Verify OIDC attach handles DB errors |
 
 ### REQ02: Create TODOs
 
@@ -96,41 +147,65 @@ This document provides traceability from software requirements to test cases, en
 | DB_P_001 | Test_DB_P_001_InitDBSuccess | Positive | db/db_test.go | Verify database initialization works |
 | DB_P_002 | Test_DB_P_002_GetDBReturnsInstance | Positive | db/db_test.go | Verify GetDB returns the database instance |
 | DB_P_003 | Test_DB_P_003_SetDB | Positive | db/db_test.go | Verify SetDB sets the database instance |
+| DB_P_004 | Test_DB_P_004_ConfigFromEnv | Positive | db/db_test.go | Verify database config is read from environment |
+| DB_P_004A | Test_DB_P_004A_ConfigFromEnvTrimsWhitespace | Positive | db/db_test.go | Verify database config trims whitespace from environment values |
+| DB_P_004B | Test_DB_P_004B_ConfigFromEnvDoesNotAutoSelectRDSCAWithoutIAM | Positive | db/db_test.go | Verify non-IAM database config does not auto-select the RDS CA bundle |
+| DB_P_004C | Test_DB_P_004C_ConfigFromEnvSkipsRDSCAForSQLite | Positive | db/db_test.go | Verify SQLite database config skips RDS CA bundle selection |
+| DB_P_005 | Test_DB_P_005_PostgresDSN | Positive | db/db_test.go | Verify PostgreSQL DSN construction |
+| DB_P_006 | Test_DB_P_006_BuildRDSAuthToken | Positive | db/db_test.go | Verify RDS IAM auth token signing |
+| DB_P_007 | Test_DB_P_007_PostgresOpeners | Positive | db/db_test.go | Verify PostgreSQL openers initialize connections |
+| DB_P_008 | Test_DB_P_008_SmallHelpers | Positive | db/db_test.go | Verify database helper defaults |
+| DB_P_009 | Test_DB_P_009_OpenIAMPostgres | Positive | db/db_test.go | Verify IAM PostgreSQL sql.DB initialization |
+| DB_P_010 | Test_DB_P_010_PostgresPoolDefaults | Positive | db/db_test.go | Verify PostgreSQL pool defaults are bounded |
+| DB_P_011 | Test_DB_P_011_PostgresPoolConfigured | Positive | db/db_test.go | Verify configured PostgreSQL pool sizes are applied |
 | DB_N_001 | Test_DB_N_001_InitDBInvalidPath | Negative | db/db_test.go | Verify database initialization fails with invalid path |
 | DB_N_002 | Test_DB_N_002_InitDBAutoMigrateError | Negative | db/db_test.go | Verify InitDB handles AutoMigrate error |
+| DB_N_003 | Test_DB_N_003_OpenDBUnsupportedDriver | Negative | db/db_test.go | Verify unsupported drivers fail fast |
+| DB_N_004 | Test_DB_N_004_ValidatePostgresConfig | Negative | db/db_test.go | Verify PostgreSQL config validation |
+| DB_N_005 | Test_DB_N_005_IAMAuthConnectorConnectError | Negative | db/db_test.go | Verify IAM connector connection errors |
+| DB_N_006 | Test_DB_N_006_BuildRDSAuthTokenCredentialError | Negative | db/db_test.go | Verify RDS IAM auth token credential errors |
+| DB_N_007 | Test_DB_N_007_OpenPostgresClosesSQLDBOnGormOpenError | Negative | db/db_test.go | Verify openPostgres closes sql.DB when GORM open fails |
 | Models_P_001 | Test_Models_P_001_UserTableName | Positive | models/models_test.go | Verify User.TableName returns correct table name |
 | Models_P_002 | Test_Models_P_002_TodoTableName | Positive | models/models_test.go | Verify Todo.TableName returns correct table name |
 | Main_P_001 | Test_Main_P_001_SetupRouter | Positive | main_test.go | Verify router setup works correctly |
 | Main_P_002 | Test_Main_P_002_HealthCheck | Positive | main_test.go | Verify health check endpoint works |
-| Main_P_003 | Test_Main_P_003_CORSMiddleware | Positive | main_test.go | Verify CORS headers are set |
+| Main_P_002B | Test_Main_P_002B_AuthConfig | Positive | main_test.go | Verify auth config endpoint exposes OIDC state |
+| Main_P_002C | Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic | Positive | main_test.go | Verify audit log middleware logs recovered panics |
+| Main_P_003 | Test_Main_P_003_CORSMiddlewareDefaultSameOrigin | Positive | main_test.go | Verify CORS defaults to same-origin only |
+| Main_P_003B | Test_Main_P_003B_CORSMiddlewareConfigured | Positive | main_test.go | Verify configured CORS origin is allowed |
+| Main_P_003C | Test_Main_P_003C_CORSMiddlewareWildcardDoesNotVary | Positive | main_test.go | Verify wildcard CORS does not vary by origin |
+| Main_P_003D | Test_Main_P_003D_CORSMiddlewareDisallowedOriginVary | Positive | main_test.go | Verify disallowed CORS origins vary cached responses |
 | Main_P_004 | Test_Main_P_004_CORSMiddlewareOptions | Positive | main_test.go | Verify OPTIONS request handling |
-| Main_P_005 | Test_Main_P_005_GetDBPathDefault | Positive | main_test.go | Verify default DB path |
-| Main_P_006 | Test_Main_P_006_GetDBPathEnv | Positive | main_test.go | Verify DB path from environment |
 | Main_P_007 | Test_Main_P_007_GetPortDefault | Positive | main_test.go | Verify default port |
 | Main_P_008 | Test_Main_P_008_GetPortEnv | Positive | main_test.go | Verify port from environment |
+| Main_P_009 | Test_Main_P_009_RunSuccess | Positive | main_test.go | Verify startup orchestration succeeds |
+| Main_N_001 | Test_Main_N_001_RunAuthConfigError | Negative | main_test.go | Verify startup fails on auth config errors |
+| Main_N_002 | Test_Main_N_002_RunDBError | Negative | main_test.go | Verify startup fails on database errors |
+| Main_N_003 | Test_Main_N_003_RunServerError | Negative | main_test.go | Verify startup fails on server errors |
 
 ## 4. Coverage Summary
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 23 | 6 | 12 | 5 |
+| REQ01 | 69 | 30 | 31 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
-| Infrastructure | 15 | 15 | 0 | 0 |
-| **Total** | **68** | **29** | **26** | **13** |
+| Infrastructure | 36 | 26 | 10 | 0 |
+| **Total** | **135** | **64** | **55** | **16** |
 
 ## 5. Code Coverage
 
 | Package | Coverage |
 |---------|----------|
-| auth | 100.0% |
-| db | 100.0% |
-| handlers | 100.0% |
+| main | 91.8% |
+| auth | 98.0% |
+| db | 95.2% |
+| handlers | 94.3% |
 | models | 100.0% |
-| **Total** | **100.0%** |
+| **Total** | **95.0%** |
 
-*Note: main.go is excluded from coverage as it contains only the application entry point.*
+*Note: main.go is included in coverage because it contains router setup, CORS and audit middleware, health checks, configuration helpers, and application startup orchestration covered by main_test.go.*
 
 ## 6. Test Execution
 
@@ -139,9 +214,9 @@ Tests are executed using:
 go test -v ./...
 ```
 
-Coverage report (excluding main.go):
+Coverage report:
 ```bash
-go test -coverprofile=coverage.out ./auth ./db ./handlers ./models
+go test -coverprofile=coverage.out ./...
 go tool cover -func=coverage.out
 ```
 
