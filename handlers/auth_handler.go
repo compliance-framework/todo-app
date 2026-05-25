@@ -21,6 +21,7 @@ import (
 	"github.com/ContainerSolutions/todo-app/models"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
@@ -218,9 +219,11 @@ func OIDCCallback(c *gin.Context) {
 	stateCookie, err := c.Request.Cookie("oidc_state")
 	loginState, stateErr := decodeOIDCLoginState(stateCookie)
 	if err != nil || stateErr != nil || loginState.State == "" || loginState.Nonce == "" || loginState.State != c.Query("state") {
+		if err == nil {
+			clearOIDCStateCookie(c)
+		}
 		if stateErr == nil && loginState.State != "" {
 			deleteOIDCCodeVerifier(loginState.State)
-			clearOIDCStateCookie(c)
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid OIDC state"})
 		return
@@ -445,6 +448,9 @@ func attachOIDCIdentity(user models.User, issuer string, claims auth.OIDCClaims)
 		Where("id = ? AND oidc_issuer IS NULL AND oidc_subject IS NULL", user.ID).
 		Updates(updates)
 	if result.Error != nil {
+		if isUniqueConstraintError(result.Error) {
+			return models.User{}, errOIDCUserAlreadyLinked
+		}
 		return models.User{}, result.Error
 	}
 
@@ -459,6 +465,19 @@ func attachOIDCIdentity(user models.User, issuer string, claims auth.OIDCClaims)
 		return reloaded, nil
 	}
 	return models.User{}, errOIDCUserAlreadyLinked
+}
+
+func isUniqueConstraintError(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return true
+	}
+	errText := err.Error()
+	return strings.Contains(errText, "UNIQUE constraint failed") ||
+		strings.Contains(errText, "duplicate key value violates unique constraint")
 }
 
 func oidcUsername(issuer string, claims auth.OIDCClaims) string {

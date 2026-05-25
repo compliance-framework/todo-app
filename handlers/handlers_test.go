@@ -1313,6 +1313,26 @@ func Test_REQ01_N_015A_OIDCCallbackStateMismatchClearsVerifier(t *testing.T) {
 	}
 }
 
+// Test_REQ01_N_015C_OIDCCallbackMalformedStateCookieClearsCookie verifies bad state cookies are cleared.
+func Test_REQ01_N_015C_OIDCCallbackMalformedStateCookieClearsCookie(t *testing.T) {
+	router := gin.New()
+	router.GET("/api/auth/oidc/callback", OIDCCallback)
+
+	req := mustNewRequest(t, "GET", "/api/auth/oidc/callback?state=state", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "not-a-valid-signed-state"})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+	result := w.Result()
+	defer result.Body.Close()
+	if len(result.Cookies()) == 0 || result.Cookies()[0].Name != "oidc_state" || result.Cookies()[0].MaxAge != -1 {
+		t.Error("Expected malformed state cookie to be cleared")
+	}
+}
+
 // Test_REQ01_N_015B_OIDCCallbackMissingStoredCodeVerifier verifies callback requires server-side PKCE state.
 func Test_REQ01_N_015B_OIDCCallbackMissingStoredCodeVerifier(t *testing.T) {
 	t.Setenv("APP_ENV", "test")
@@ -2005,6 +2025,30 @@ func Test_REQ01_P_014B_AttachOIDCIdentityRejectsStaleConcurrentRelink(t *testing
 	if reloaded.OIDCIssuer == nil || *reloaded.OIDCIssuer != "https://issuer-one.example.com" ||
 		reloaded.OIDCSubject == nil || *reloaded.OIDCSubject != "subject-1" {
 		t.Fatalf("Expected stale relink not to overwrite original OIDC identity, got %+v", reloaded)
+	}
+}
+
+// Test_REQ01_P_014D_AttachOIDCIdentityMapsDuplicateIdentityToConflict verifies unique conflicts are semantic link conflicts.
+func Test_REQ01_P_014D_AttachOIDCIdentityMapsDuplicateIdentityToConflict(t *testing.T) {
+	setupTestDB(t)
+	linkedOwner := createTestUser(t, "linked-owner@example.com", "password123")
+	target := createTestUser(t, "link-target@example.com", "password123")
+
+	if _, err := attachOIDCIdentity(linkedOwner, "https://issuer.example.com", auth.OIDCClaims{Subject: "subject-1"}); err != nil {
+		t.Fatalf("attachOIDCIdentity returned error: %v", err)
+	}
+
+	_, err := attachOIDCIdentity(target, "https://issuer.example.com", auth.OIDCClaims{Subject: "subject-1"})
+	if !errors.Is(err, errOIDCUserAlreadyLinked) {
+		t.Fatalf("Expected duplicate identity attach to fail with errOIDCUserAlreadyLinked, got %v", err)
+	}
+
+	var reloaded models.User
+	if err := db.GetDB().First(&reloaded, target.ID).Error; err != nil {
+		t.Fatalf("Failed to reload target user: %v", err)
+	}
+	if reloaded.OIDCIssuer != nil || reloaded.OIDCSubject != nil {
+		t.Fatalf("Expected target user to remain unlinked, got %+v", reloaded)
 	}
 }
 
