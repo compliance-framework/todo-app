@@ -36,8 +36,11 @@ variable "allowed_https_cidr_blocks" {
   type        = list(string)
 
   validation {
-    condition     = length(var.allowed_https_cidr_blocks) > 0 && alltrue([for cidr in var.allowed_https_cidr_blocks : can(cidrhost(cidr, 0))])
-    error_message = "allowed_https_cidr_blocks must contain at least one valid CIDR block."
+    condition = length(var.allowed_https_cidr_blocks) > 0 && alltrue([
+      for cidr in var.allowed_https_cidr_blocks :
+      can(cidrhost(cidr, 0)) && can(regex("^([0-9]{1,3}\\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$", cidr))
+    ])
+    error_message = "allowed_https_cidr_blocks must contain at least one valid IPv4 CIDR block."
   }
 }
 

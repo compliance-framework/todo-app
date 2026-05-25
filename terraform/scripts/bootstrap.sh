@@ -73,11 +73,14 @@ install_cosign() {
   work_dir="$(mktemp -d)"
   cosign_file="$work_dir/cosign"
 
-  log "installing cosign ${COSIGN_VERSION}"
-  curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 120 "$url" --output "$cosign_file"
-  printf '%s  %s\n' "$checksum" "$cosign_file" | sha256sum --check --status
-  install -o root -g root -m 0755 "$cosign_file" /usr/local/bin/cosign
-  rm -rf "$work_dir"
+  (
+    trap 'rm -rf "$work_dir"' EXIT
+
+    log "installing cosign ${COSIGN_VERSION}"
+    curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 120 "$url" --output "$cosign_file"
+    printf '%s  %s\n' "$checksum" "$cosign_file" | sha256sum --check --status
+    install -o root -g root -m 0755 "$cosign_file" /usr/local/bin/cosign
+  )
 }
 
 ensure_user() {
@@ -203,13 +206,16 @@ install_release() {
   work_dir="$(mktemp -d)"
   release_dir="$APP_HOME/releases/$tag"
 
-  download_and_verify "$tag" "$work_dir"
+  (
+    trap 'rm -rf "$work_dir"' EXIT
 
-  install -d -o root -g root -m 0755 "$release_dir"
-  install -o root -g root -m 0755 "$work_dir/$RELEASE_ARTIFACT_NAME" "$release_dir/todo-app"
-  ln -sfn "$release_dir/todo-app" "$APP_HOME/bin/todo-app"
-  printf '%s\n' "$tag" >"$APP_HOME/current-release"
-  rm -rf "$work_dir"
+    download_and_verify "$tag" "$work_dir"
+
+    install -d -o root -g root -m 0755 "$release_dir"
+    install -o root -g root -m 0755 "$work_dir/$RELEASE_ARTIFACT_NAME" "$release_dir/todo-app"
+    ln -sfn "$release_dir/todo-app" "$APP_HOME/bin/todo-app"
+    printf '%s\n' "$tag" >"$APP_HOME/current-release"
+  )
 }
 
 main() {
