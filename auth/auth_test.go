@@ -322,6 +322,55 @@ func Test_Auth_P_003_IsDevelopmentModeFallbacks(t *testing.T) {
 	}
 }
 
+func Test_Auth_P_007_CookieSigningSecretFromEnv(t *testing.T) {
+	t.Setenv("OIDC_STATE_SECRET", " primary-secret ")
+	t.Setenv("JWT_SECRET", "jwt-secret")
+	t.Setenv("APP_ENV", "production")
+
+	secret, err := CookieSigningSecretFromEnv("OIDC_STATE_SECRET")
+	if err != nil {
+		t.Fatalf("CookieSigningSecretFromEnv returned error: %v", err)
+	}
+	if string(secret) != "primary-secret" {
+		t.Fatalf("Expected primary signing secret, got %q", string(secret))
+	}
+
+	t.Setenv("OIDC_STATE_SECRET", "")
+	secret, err = CookieSigningSecretFromEnv("OIDC_STATE_SECRET")
+	if err != nil {
+		t.Fatalf("CookieSigningSecretFromEnv returned error for JWT fallback: %v", err)
+	}
+	if string(secret) != "jwt-secret" {
+		t.Fatalf("Expected JWT fallback signing secret, got %q", string(secret))
+	}
+}
+
+func Test_Auth_P_008_CookieSigningSecretDevelopmentFallback(t *testing.T) {
+	t.Setenv("OIDC_STATE_SECRET", "")
+	t.Setenv("JWT_SECRET", "")
+	t.Setenv("APP_ENV", "test")
+
+	secret, err := CookieSigningSecretFromEnv("OIDC_STATE_SECRET")
+	if err != nil {
+		t.Fatalf("CookieSigningSecretFromEnv returned error: %v", err)
+	}
+	if string(secret) != devJWTSecret {
+		t.Fatalf("Expected development signing secret, got %q", string(secret))
+	}
+}
+
+func Test_Auth_N_003_CookieSigningSecretProductionMissing(t *testing.T) {
+	t.Setenv("OIDC_STATE_SECRET", "")
+	t.Setenv("JWT_SECRET", "")
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("ENV", "")
+	t.Setenv("GIN_MODE", "")
+
+	if _, err := CookieSigningSecretFromEnv("OIDC_STATE_SECRET"); err == nil {
+		t.Error("Expected error when signing secret is missing outside development")
+	}
+}
+
 func Test_Auth_P_004_OIDCConfigFromEnv(t *testing.T) {
 	t.Setenv("OIDC_ISSUER_URL", " https://issuer.example.com ")
 	t.Setenv("OIDC_CLIENT_ID", " client-id ")

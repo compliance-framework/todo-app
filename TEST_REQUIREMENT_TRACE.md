@@ -45,6 +45,8 @@ This document provides traceability from software requirements to test cases, en
 | Auth_P_004 | Test_Auth_P_004_OIDCConfigFromEnv | Positive | auth/auth_test.go | Verify OIDC config is read from environment |
 | Auth_P_005 | Test_Auth_P_005_OIDCConfigOAuth2ConfigSuccess | Positive | auth/auth_test.go | Verify OIDC provider discovery configures OAuth2 |
 | Auth_P_006 | Test_Auth_P_006_OIDCConfigOAuth2ConfigConcurrentDiscoverySingleflight | Positive | auth/auth_test.go | Verify concurrent OIDC provider discovery is deduplicated |
+| Auth_P_007 | Test_Auth_P_007_CookieSigningSecretFromEnv | Positive | auth/auth_test.go | Verify cookie signing secrets prefer the primary env var and fall back to JWT_SECRET |
+| Auth_P_008 | Test_Auth_P_008_CookieSigningSecretDevelopmentFallback | Positive | auth/auth_test.go | Verify cookie signing secrets use the development fallback in test mode |
 | REQ01_N_001 | Test_REQ01_N_001_CheckWrongPassword | Negative | auth/auth_test.go | Verify wrong password fails check |
 | REQ01_N_002 | Test_REQ01_N_002_ValidateInvalidToken | Negative | auth/auth_test.go | Verify invalid token is rejected |
 | REQ01_N_003 | Test_REQ01_N_003_AuthMiddlewareNoHeader | Negative | auth/auth_test.go | Verify middleware rejects missing header |
@@ -71,6 +73,7 @@ This document provides traceability from software requirements to test cases, en
 | REQ01_N_023 | Test_REQ01_N_023_OIDCCallbackInvalidNonce | Negative | handlers/handlers_test.go | Verify OIDC callback rejects ID tokens with an invalid nonce |
 | Auth_N_001 | Test_Auth_N_001_ConfigureJWTSecretProductionMissing | Negative | auth/auth_test.go | Verify JWT secret is required outside development |
 | Auth_N_002 | Test_Auth_N_002_OIDCConfigOAuth2ConfigUnconfigured | Negative | auth/auth_test.go | Verify unconfigured OIDC config returns error |
+| Auth_N_003 | Test_Auth_N_003_CookieSigningSecretProductionMissing | Negative | auth/auth_test.go | Verify cookie signing secrets are required outside development |
 | REQ01_E_001 | Test_REQ01_E_001_TokenExpiry | Edge | auth/auth_test.go | Verify expired tokens are rejected |
 | REQ01_E_002 | Test_REQ01_E_002_RegisterDBError | Edge | handlers/handlers_test.go | Verify Register handles DB error on create |
 | REQ01_E_003 | Test_REQ01_E_003_LoginDBError | Edge | handlers/handlers_test.go | Verify Login handles DB error |
@@ -169,22 +172,22 @@ This document provides traceability from software requirements to test cases, en
 
 | Requirement | Total Tests | Positive | Negative | Edge |
 |-------------|-------------|----------|----------|------|
-| REQ01 | 60 | 26 | 26 | 8 |
+| REQ01 | 63 | 28 | 27 | 8 |
 | REQ02 | 6 | 1 | 3 | 2 |
 | REQ03 | 7 | 3 | 2 | 2 |
 | REQ04 | 17 | 4 | 9 | 4 |
 | Infrastructure | 35 | 25 | 10 | 0 |
-| **Total** | **125** | **59** | **50** | **16** |
+| **Total** | **128** | **61** | **51** | **16** |
 
 ## 5. Code Coverage
 
 | Package | Coverage |
 |---------|----------|
-| auth | 100.0% |
-| db | 100.0% |
-| handlers | 100.0% |
+| auth | 98.0% |
+| db | 95.1% |
+| handlers | 94.0% |
 | models | 100.0% |
-| **Total** | **100.0%** |
+| **Total** | **95.0%** |
 
 *Note: main.go is excluded from coverage as it contains only the application entry point.*
 
