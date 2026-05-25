@@ -6,9 +6,9 @@ allowed_https_cidr_blocks = ["203.0.113.0/24"]
 
 release_tag = "v1.0.0"
 
-# Required: pinned checksums for the cosign binaries matching cosign_version.
-cosign_linux_amd64_sha256 = "replace-with-cosign-linux-amd64-sha256"
-cosign_linux_arm64_sha256 = "replace-with-cosign-linux-arm64-sha256"
+# Required: replace these placeholders with the pinned cosign binary checksums matching cosign_version before deploying.
+cosign_linux_amd64_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+cosign_linux_arm64_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
 
 # Optional overrides.
 # github_repository              = "ContainerSolutions/todo-app"
