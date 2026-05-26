@@ -4,7 +4,7 @@ This directory provisions the AWS environment for the SOC2/CCF todo-app demo. It
 
 It creates a VPC with public ALB subnets and private EC2 subnets, a TLS ALB, and a size-1 Auto Scaling Group for the app host. VPC flow logs and ALB access logs are optional and are created only when `enable_vpc_flow_logs` or `enable_alb_access_logs` are enabled.
 
-The app host enforces IMDSv2, uses an encrypted EBS root volume, and has a scoped instance profile for bootstrap parameter and database secret reads. Bootstrap configures the Go app to use the private RDS PostgreSQL instance with password authentication; the generated password is stored in Secrets Manager and fetched on the instance at runtime. The size-1 ASG is intentional: the demo Cloud Custodian policy flags bare EC2 instances.
+The app host enforces IMDSv2, uses an encrypted EBS root volume, and has an instance profile with SSM Managed Instance Core plus scoped Secrets Manager `GetSecretValue` permission for the database password. Bootstrap configures the Go app to use the private RDS PostgreSQL instance with password authentication; the generated password is stored in Secrets Manager and fetched on the instance at runtime. The size-1 ASG is intentional: the demo Cloud Custodian policy flags bare EC2 instances.
 
 By default the stack creates one NAT Gateway per AZ. Set `nat_gateway_mode = "single"` for lower-cost demo environments that can accept the single-AZ failure domain and cross-AZ egress charges.
 

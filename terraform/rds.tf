@@ -69,12 +69,6 @@ output "rds_endpoint" {
   value       = "${aws_db_instance.app.address}:${aws_db_instance.app.port}"
 }
 
-output "db_password" {
-  description = "Auto-generated RDS master password. Store this securely after first apply."
-  value       = random_password.db.result
-  sensitive   = true
-}
-
 output "db_password_secret_arn" {
   description = "Secrets Manager secret ARN containing the generated RDS master password."
   value       = aws_secretsmanager_secret.db_password.arn
