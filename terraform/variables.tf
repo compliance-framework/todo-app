@@ -121,7 +121,7 @@ variable "app_port" {
 }
 
 variable "release_tag" {
-  description = "todo-app release tag baked into bootstrap.env as FALLBACK_RELEASE_TAG. Change and re-apply to deploy a new version."
+  description = "todo-app release tag baked into bootstrap.env as FALLBACK_RELEASE_TAG. Changes update the launch template for new or replaced instances; run an instance refresh, replacement, or ASG rollout to install a new release on existing capacity."
   type        = string
   default     = "v0.1.0"
 }
