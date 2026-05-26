@@ -26,6 +26,10 @@ allowed_https_cidr_blocks = ["0.0.0.0/0"]
 # ---------------------------------------------------------------------------
 release_tag = "v1.0.0"
 
+# Demo releases do not publish sigstore bundles yet, so this example disables
+# verification explicitly. Leave the variable default enabled for production.
+skip_cosign_verify = true
+
 # Pinned SHA-256 checksums for the cosign binary (cosign_version = "v2.4.3").
 # Find the correct digests at:
 #   https://github.com/sigstore/cosign/releases/tag/v2.4.3

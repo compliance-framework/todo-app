@@ -71,10 +71,27 @@ func SetupRouter() *gin.Engine {
 	fileServer := http.FileServer(http.FS(dist))
 	r.NoRoute(func(c *gin.Context) {
 		path := strings.TrimPrefix(c.Request.URL.Path, "/")
+		if c.Request.Method != http.MethodGet || path == "api" || strings.HasPrefix(path, "api/") {
+			c.Status(http.StatusNotFound)
+			return
+		}
+
 		if _, err := dist.Open(path); err == nil && path != "" {
 			fileServer.ServeHTTP(c.Writer, c.Request)
 			return
 		}
+
+		segments := strings.Split(path, "/")
+		if len(segments) > 0 && strings.Contains(segments[len(segments)-1], ".") {
+			c.Status(http.StatusNotFound)
+			return
+		}
+
+		if !strings.Contains(c.GetHeader("Accept"), "text/html") {
+			c.Status(http.StatusNotFound)
+			return
+		}
+
 		indexHTML, err := fs.ReadFile(dist, "index.html")
 		if err != nil {
 			c.Status(http.StatusNotFound)

@@ -153,9 +153,9 @@ variable "cosign_version" {
 }
 
 variable "skip_cosign_verify" {
-  description = "Skip cosign signature verification during bootstrap. Set to true when release assets do not include a sigstore bundle."
+  description = "Skip cosign signature verification during bootstrap. Signature verification is enabled by default; set to true only when release assets do not include a sigstore bundle."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "cosign_linux_amd64_sha256" {
@@ -241,4 +241,3 @@ variable "db_username" {
   type        = string
   default     = "todoapp"
 }
-

@@ -1,11 +1,13 @@
 locals {
-  availability_zone_count    = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs), length(data.aws_availability_zones.available.names))
-  name                       = "${var.name_prefix}-${var.environment}"
-  alb_name                   = substr(replace(local.name, "_", "-"), 0, 32)
-  alb_logs_bucket_prefix     = "${substr(local.name, 0, 27)}-alb-logs-"
-  target_group_name          = trimsuffix(substr("${replace(local.name, "_", "-")}-app", 0, 32), "-")
-  vpc_flow_log_group_name    = "/aws/vpc/${local.name}/flow-logs"
-  vpc_flow_log_group_arn     = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.vpc_flow_log_group_name}"
+  availability_zone_count = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs), length(data.aws_availability_zones.available.names))
+  name                    = "${var.name_prefix}-${var.environment}"
+  alb_name                = substr(replace(local.name, "_", "-"), 0, 32)
+  alb_logs_bucket_prefix  = "${substr(local.name, 0, 27)}-alb-logs-"
+  domain_name_normalized  = trimprefix(trimsuffix(lower(var.domain_name), "."), "*.")
+  hosted_zone_normalized  = trimsuffix(lower(var.hosted_zone_name), ".")
+  target_group_name       = trimsuffix(substr("${replace(local.name, "_", "-")}-app", 0, 32), "-")
+  vpc_flow_log_group_name = "/aws/vpc/${local.name}/flow-logs"
+  vpc_flow_log_group_arn  = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.vpc_flow_log_group_name}"
 }
 
 data "aws_availability_zones" "available" {
@@ -31,6 +33,14 @@ resource "terraform_data" "input_validation" {
     precondition {
       condition     = length(var.public_subnet_cidrs) <= length(data.aws_availability_zones.available.names)
       error_message = "The number of public/private subnet CIDR blocks cannot exceed the number of available availability zones in the selected region."
+    }
+
+    precondition {
+      condition = (
+        local.domain_name_normalized == local.hosted_zone_normalized ||
+        endswith(local.domain_name_normalized, ".${local.hosted_zone_normalized}")
+      )
+      error_message = "domain_name must be equal to hosted_zone_name or a subdomain of it so ACM DNS validation records are created in the correct Route53 zone."
     }
 
     precondition {
@@ -602,7 +612,11 @@ resource "aws_launch_template" "app" {
     db_port                            = aws_db_instance.app.port
     db_name                            = var.db_name
     db_user                            = var.db_username
-    db_password                        = random_password.db.result
+    # TODO: This demo places the generated DB password in EC2 user data, which is
+    # visible to principals that can read launch template/user-data. Replace
+    # password-based bootstrap with RDS IAM authentication rather than moving the
+    # password to another secret store.
+    db_password = random_password.db.result
   }))
 
   tag_specifications {
