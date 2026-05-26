@@ -1,3 +1,6 @@
+# TODO: Replace password-based authentication with IAM database authentication.
+# IAM auth removes the need to manage, rotate, or expose database passwords entirely.
+# See: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html
 resource "random_password" "db" {
   length  = 32
   special = false

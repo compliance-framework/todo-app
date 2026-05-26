@@ -147,10 +147,13 @@ validate_release_tag() {
 }
 
 write_environment_file() {
+  # TODO: Replace password-based DATABASE_URL with IAM authentication token.
+  # The real implementation should use an IAM auth token (aws rds generate-db-auth-token)
+  # and the instance role rather than a static password.
   cat >"$ENV_FILE" <<EOF
 PORT=${APP_PORT}
 DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
-EOF
+
   chown root:"$APP_GROUP" "$ENV_FILE"
   chmod 0640 "$ENV_FILE"
 }
