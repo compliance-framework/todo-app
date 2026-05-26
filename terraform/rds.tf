@@ -3,6 +3,10 @@ resource "random_password" "db" {
   special = false
 }
 
+resource "random_id" "db_final_snapshot" {
+  byte_length = 4
+}
+
 resource "aws_secretsmanager_secret" "db_password" {
   name_prefix             = "${local.name}-db-password-"
   description             = "Generated RDS password for ${local.name}"
@@ -53,7 +57,7 @@ resource "aws_db_instance" "app" {
 
   publicly_accessible       = false
   skip_final_snapshot       = var.db_skip_final_snapshot
-  final_snapshot_identifier = "${local.name}-final-snapshot"
+  final_snapshot_identifier = var.db_skip_final_snapshot ? null : "${local.name}-final-snapshot-${random_id.db_final_snapshot.hex}"
   deletion_protection       = var.db_deletion_protection
   backup_retention_period   = var.db_backup_retention_period
 

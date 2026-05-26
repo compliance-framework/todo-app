@@ -2,7 +2,7 @@
 
 This directory provisions the AWS environment for the SOC2/CCF todo-app demo. It defaults to `eu-west-2`; set `aws_region` to deploy in another region.
 
-It creates a VPC with public ALB subnets and private EC2 subnets, VPC flow logs, a TLS ALB with access logs, and a size-1 Auto Scaling Group for the app host.
+It creates a VPC with public ALB subnets and private EC2 subnets, a TLS ALB, and a size-1 Auto Scaling Group for the app host. VPC flow logs and ALB access logs are optional and are created only when `enable_vpc_flow_logs` or `enable_alb_access_logs` are enabled.
 
 The app host enforces IMDSv2, uses an encrypted EBS root volume, and has a scoped instance profile for bootstrap parameter and database secret reads. Bootstrap configures the Go app to use the private RDS PostgreSQL instance with password authentication; the generated password is stored in Secrets Manager and fetched on the instance at runtime. The size-1 ASG is intentional: the demo Cloud Custodian policy flags bare EC2 instances.
 
@@ -45,4 +45,4 @@ go test ./...
 
 Terraform writes bootstrap configuration into EC2 user data and installs `terraform/scripts/bootstrap.sh` on the EC2 host. Bootstrap downloads `cosign`, verifies the binary against the pinned checksum supplied in Terraform variables, downloads the release artifact and sigstore bundle from GitHub, verifies the artifact with `cosign verify-blob`, installs the binary under `/opt/todo-app/releases/<tag>`, updates the `/opt/todo-app/bin/todo-app` symlink, fetches the RDS password from Secrets Manager, writes `/etc/todo-app/todo-app.env` with `PORT` and the `DB_*` PostgreSQL settings, and restarts `todo-app.service`.
 
-To upgrade, change `release_tag` in Terraform or update the SSM parameter directly, then rerun `/opt/todo-app/bootstrap.sh` on the instance. The stack creates an SSM Command document, exposed as `upgrade_ssm_document_name`, for that rerun. The existing release-triggered deployment workflow can later update the release tag parameter and invoke this document without changing the bootstrap contract.
+To upgrade through Terraform, change `release_tag` and apply the stack so replacement app instances receive the new value in user data as `FALLBACK_RELEASE_TAG` during bootstrap. For a manual rerun on an existing instance, execute `/opt/todo-app/bootstrap.sh`; it uses the bootstrap environment already written from user data, including the configured release tag and database secret ARN.

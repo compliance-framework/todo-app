@@ -41,7 +41,7 @@ install_packages() {
   if command -v dnf >/dev/null 2>&1; then
     dnf install -y --allowerasing awscli curl shadow-utils
   elif command -v yum >/dev/null 2>&1; then
-    yum install -y --allowerasing awscli curl shadow-utils
+    yum install -y awscli curl shadow-utils
   elif command -v apt-get >/dev/null 2>&1; then
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y awscli curl
@@ -158,6 +158,31 @@ write_environment_file() {
 
   if [ -z "$DB_PASSWORD" ]; then
     log "missing DB password; set DB_PASSWORD_SECRET_ARN or DB_PASSWORD"
+    exit 1
+  fi
+
+  if [ -z "$DB_HOST" ]; then
+    log "missing DB_HOST"
+    exit 1
+  fi
+
+  if [ -z "$DB_PORT" ]; then
+    log "missing DB_PORT"
+    exit 1
+  fi
+
+  if ! [[ "$DB_PORT" =~ ^[0-9]+$ ]] || [ "$DB_PORT" -lt 1 ] || [ "$DB_PORT" -gt 65535 ]; then
+    log "invalid DB_PORT: $DB_PORT"
+    exit 1
+  fi
+
+  if [ -z "$DB_NAME" ]; then
+    log "missing DB_NAME"
+    exit 1
+  fi
+
+  if [ -z "$DB_USER" ]; then
+    log "missing DB_USER"
     exit 1
   fi
 

@@ -95,7 +95,8 @@ func SetupRouter() *gin.Engine {
 			return
 		}
 
-		if !strings.Contains(c.GetHeader("Accept"), "text/html") {
+		accept := strings.ToLower(c.GetHeader("Accept"))
+		if !strings.Contains(accept, "text/html") {
 			c.Status(http.StatusNotFound)
 			return
 		}
