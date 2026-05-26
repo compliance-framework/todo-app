@@ -1,22 +1,55 @@
-alb_certificate_arn = "arn:aws:acm:eu-west-2:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+# ---------------------------------------------------------------------------
+# Domain — Terraform creates the ACM certificate, Route53 DNS validation
+# record, and ALB HTTPS listener. Only the hosted zone must pre-exist.
+# ---------------------------------------------------------------------------
+domain_name      = "todo.example.com"   # specific hostname for the cert and ALB
+hosted_zone_name = "example.com"        # apex Route53 hosted zone that owns domain_name
 
-# Required: choose who can reach the public ALB on HTTPS.
+# ---------------------------------------------------------------------------
+# Network access
+# ---------------------------------------------------------------------------
+# Choose who can reach the public ALB on HTTPS.
 # Use ["0.0.0.0/0"] only when intentionally opening HTTPS to the internet.
-allowed_https_cidr_blocks = ["203.0.113.0/24"]
+allowed_https_cidr_blocks = ["0.0.0.0/0"]
 
+# ---------------------------------------------------------------------------
+# RDS PostgreSQL
+# ---------------------------------------------------------------------------
+# db_name           = "tododb"        # default
+# db_username       = "todoapp"       # default
+# db_instance_class = "db.t3.micro"   # default
+# db_password is auto-generated — retrieve it after apply with:
+#   terraform output -raw db_password
+
+# ---------------------------------------------------------------------------
+# Application release
+# ---------------------------------------------------------------------------
 release_tag = "v1.0.0"
 
-# Required: replace these placeholders with the pinned cosign binary checksums matching cosign_version before deploying.
-cosign_linux_amd64_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
-cosign_linux_arm64_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+# Pinned SHA-256 checksums for the cosign binary (cosign_version = "v2.4.3").
+# Find the correct digests at:
+#   https://github.com/sigstore/cosign/releases/tag/v2.4.3
+# Download the checksums file: cosign-2.4.3.checksums.txt
+cosign_linux_amd64_sha256 = "REPLACE_WITH_AMD64_SHA256_FROM_RELEASE_PAGE"
+cosign_linux_arm64_sha256 = "REPLACE_WITH_ARM64_SHA256_FROM_RELEASE_PAGE"
 
-# Optional overrides.
-# github_repository              = "ContainerSolutions/todo-app"
-# release_artifact_name          = "todo-app-linux-amd64"
-# release_signature_bundle_name  = "todo-app-linux-amd64.bundle"
-# For ARM instance types such as t4g.*, change all three values together:
-# ec2_ami_architecture           = "arm64"
-# release_artifact_name          = "todo-app-linux-arm64"
-# release_signature_bundle_name  = "todo-app-linux-arm64.bundle"
-# nat_gateway_mode               = "single" # Lower cost, less available than the default "per_az".
-# ticket_tag                     = "BCH-1283"
+# ---------------------------------------------------------------------------
+# Optional overrides (uncomment to change defaults)
+# ---------------------------------------------------------------------------
+# aws_region    = "eu-west-2"
+# environment   = "soc2-demo"
+# name_prefix   = "todo-app"
+# nat_gateway_mode = "single"   # Lower cost; less available than default "per_az"
+# ec2_instance_type = "t3.micro"
+
+# Observability (disabled by default to reduce cost; enable for production)
+# enable_vpc_flow_logs   = true
+# enable_alb_access_logs = true
+
+# For ARM instance types such as t4g.*, change all three together:
+# ec2_ami_architecture          = "arm64"
+# release_artifact_name         = "todo-app-linux-arm64"
+# release_signature_bundle_name = "todo-app-linux-arm64.bundle"
+
+# ec2_key_name = "my-key-pair"  # Break-glass SSH access (leave unset normally)
+# ticket_tag   = "BCH-1283"     # Propagated as a tag on all resources

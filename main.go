@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -14,6 +17,9 @@ import (
 	"github.com/ContainerSolutions/todo-app/handlers"
 	"github.com/gin-gonic/gin"
 )
+
+//go:embed all:frontend/dist
+var frontendFS embed.FS
 
 var (
 	initDBFunc    = db.InitDBWithConfig
@@ -56,6 +62,26 @@ func SetupRouter() *gin.Engine {
 		protected.PUT("/todos/:id", handlers.UpdateTodo)
 		protected.DELETE("/todos/:id", handlers.DeleteTodo)
 	}
+
+	// Serve embedded frontend SPA; fallback to index.html for client-side routing
+	dist, err := fs.Sub(frontendFS, "frontend/dist")
+	if err != nil {
+		log.Fatalf("failed to create frontend sub-FS: %v", err)
+	}
+	fileServer := http.FileServer(http.FS(dist))
+	r.NoRoute(func(c *gin.Context) {
+		path := strings.TrimPrefix(c.Request.URL.Path, "/")
+		if _, err := dist.Open(path); err == nil && path != "" {
+			fileServer.ServeHTTP(c.Writer, c.Request)
+			return
+		}
+		indexHTML, err := fs.ReadFile(dist, "index.html")
+		if err != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
+	})
 
 	return r
 }

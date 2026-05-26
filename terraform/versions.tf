@@ -6,7 +6,16 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.80"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
+}
+
+provider "aws" {
+  alias  = "no_default_tags"
+  region = var.aws_region
 }
 
 provider "aws" {
