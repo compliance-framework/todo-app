@@ -25,11 +25,7 @@ DB_HOST=${jsonencode(db_host)}
 DB_PORT=${jsonencode(db_port)}
 DB_NAME=${jsonencode(db_name)}
 DB_USER=${jsonencode(db_user)}
-# TODO: This demo places the generated DB password in EC2 user data, which is
-# visible to principals that can read launch template/user-data. Replace
-# password-based bootstrap with RDS IAM authentication rather than moving the
-# password to another secret store.
-DB_PASSWORD=${jsonencode(db_password)}
+DB_PASSWORD_SECRET_ARN=${jsonencode(db_password_secret_arn)}
 BOOTSTRAP_ENV
 chmod 0640 /etc/todo-app/bootstrap.env
 

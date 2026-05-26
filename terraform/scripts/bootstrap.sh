@@ -29,6 +29,7 @@ DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${DB_NAME:-tododb}"
 DB_USER="${DB_USER:-todoapp}"
 DB_PASSWORD="${DB_PASSWORD:-}"
+DB_PASSWORD_SECRET_ARN="${DB_PASSWORD_SECRET_ARN:-}"
 COSIGN_CERTIFICATE_IDENTITY_REGEXP="${COSIGN_CERTIFICATE_IDENTITY_REGEXP:-https://github.com/compliance-framework/todo-app/.github/workflows/.*}"
 COSIGN_CERTIFICATE_OIDC_ISSUER="${COSIGN_CERTIFICATE_OIDC_ISSUER:-https://token.actions.githubusercontent.com}"
 
@@ -147,9 +148,29 @@ validate_release_tag() {
 }
 
 write_environment_file() {
+  if [ -n "$DB_PASSWORD_SECRET_ARN" ]; then
+    DB_PASSWORD="$(aws secretsmanager get-secret-value \
+      --secret-id "$DB_PASSWORD_SECRET_ARN" \
+      --query SecretString \
+      --output text \
+      --region "$AWS_REGION")"
+  fi
+
+  if [ -z "$DB_PASSWORD" ]; then
+    log "missing DB password; set DB_PASSWORD_SECRET_ARN or DB_PASSWORD"
+    exit 1
+  fi
+
   cat >"$ENV_FILE" <<EOF
 PORT=${APP_PORT}
-DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
+DB_DRIVER=postgres
+DB_HOST=${DB_HOST}
+DB_PORT=${DB_PORT}
+DB_NAME=${DB_NAME}
+DB_USER=${DB_USER}
+DB_PASSWORD=${DB_PASSWORD}
+DB_IAM_AUTH=false
+DB_REGION=${AWS_REGION}
 EOF
   chown root:"$APP_GROUP" "$ENV_FILE"
   chmod 0640 "$ENV_FILE"

@@ -557,6 +557,22 @@ resource "aws_iam_role_policy_attachment" "app_instance_ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+resource "aws_iam_role_policy" "app_instance_db_password" {
+  name = "${local.name}-db-password"
+  role = aws_iam_role.app_instance.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "secretsmanager:GetSecretValue"
+        Resource = aws_secretsmanager_secret.db_password.arn
+      }
+    ]
+  })
+}
+
 resource "aws_iam_instance_profile" "app" {
   provider = aws.no_default_tags
   name     = "${local.name}-ec2"
@@ -612,12 +628,10 @@ resource "aws_launch_template" "app" {
     db_port                            = aws_db_instance.app.port
     db_name                            = var.db_name
     db_user                            = var.db_username
-    # TODO: This demo places the generated DB password in EC2 user data, which is
-    # visible to principals that can read launch template/user-data. Replace
-    # password-based bootstrap with RDS IAM authentication rather than moving the
-    # password to another secret store.
-    db_password = random_password.db.result
+    db_password_secret_arn             = aws_secretsmanager_secret.db_password.arn
   }))
+
+  depends_on = [aws_secretsmanager_secret_version.db_password]
 
   tag_specifications {
     resource_type = "instance"

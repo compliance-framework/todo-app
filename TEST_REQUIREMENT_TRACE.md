@@ -173,7 +173,8 @@ This document provides traceability from software requirements to test cases, en
 | Main_P_001 | Test_Main_P_001_SetupRouter | Positive | main_test.go | Verify router setup works correctly |
 | Main_P_002 | Test_Main_P_002_HealthCheck | Positive | main_test.go | Verify health check endpoint works |
 | Main_P_002B | Test_Main_P_002B_AuthConfig | Positive | main_test.go | Verify auth config endpoint exposes OIDC state |
-| Main_P_002C | Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic | Positive | main_test.go | Verify audit log middleware logs recovered panics |
+| Main_P_002C | Test_Main_P_002C_NoRouteSPAFallbackOnlyForBrowserNavigation | Positive | main_test.go | Verify SPA fallback is only used for browser navigation |
+| Main_P_002D | Test_Main_P_002D_AuditLogMiddlewareLogsRecoveredPanic | Positive | main_test.go | Verify audit log middleware logs recovered panics |
 | Main_P_003 | Test_Main_P_003_CORSMiddlewareDefaultSameOrigin | Positive | main_test.go | Verify CORS defaults to same-origin only |
 | Main_P_003B | Test_Main_P_003B_CORSMiddlewareConfigured | Positive | main_test.go | Verify configured CORS origin is allowed |
 | Main_P_003C | Test_Main_P_003C_CORSMiddlewareWildcardDoesNotVary | Positive | main_test.go | Verify wildcard CORS does not vary by origin |
@@ -182,6 +183,7 @@ This document provides traceability from software requirements to test cases, en
 | Main_P_007 | Test_Main_P_007_GetPortDefault | Positive | main_test.go | Verify default port |
 | Main_P_008 | Test_Main_P_008_GetPortEnv | Positive | main_test.go | Verify port from environment |
 | Main_P_009 | Test_Main_P_009_RunSuccess | Positive | main_test.go | Verify startup orchestration succeeds |
+| Main_P_010 | Test_Main_P_010_MainSuccess | Positive | main_test.go | Verify main exits normally when startup succeeds |
 | Main_N_001 | Test_Main_N_001_RunAuthConfigError | Negative | main_test.go | Verify startup fails on auth config errors |
 | Main_N_002 | Test_Main_N_002_RunDBError | Negative | main_test.go | Verify startup fails on database errors |
 | Main_N_003 | Test_Main_N_003_RunServerError | Negative | main_test.go | Verify startup fails on server errors |

@@ -29,11 +29,21 @@ variable "name_prefix" {
 variable "domain_name" {
   description = "Fully-qualified domain name for the application (e.g. todo.ccfdemo.com). Used for the ACM certificate and ALB HTTPS listener."
   type        = string
+
+  validation {
+    condition     = can(regex("^([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$", trimspace(var.domain_name)))
+    error_message = "domain_name must be a non-empty fully-qualified domain name such as todo.example.com, without a trailing dot."
+  }
 }
 
 variable "hosted_zone_name" {
   description = "Name of the existing Route53 public hosted zone that contains domain_name (e.g. ccfdemo.com). Terraform writes DNS validation records into this zone."
   type        = string
+
+  validation {
+    condition     = can(regex("^([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$", trimsuffix(trimspace(var.hosted_zone_name), ".")))
+    error_message = "hosted_zone_name must be a non-empty DNS zone name such as example.com, with an optional trailing dot."
+  }
 }
 
 variable "enable_vpc_flow_logs" {
@@ -228,6 +238,29 @@ variable "db_allocated_storage" {
   description = "Allocated storage for the RDS instance in GiB."
   type        = number
   default     = 20
+}
+
+variable "db_backup_retention_period" {
+  description = "Number of days to retain automated RDS backups. Set to 0 only for disposable demo environments."
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = var.db_backup_retention_period >= 0 && var.db_backup_retention_period <= 35
+    error_message = "db_backup_retention_period must be between 0 and 35 days."
+  }
+}
+
+variable "db_skip_final_snapshot" {
+  description = "Skip the final RDS snapshot on destroy. Set true only for disposable demo environments."
+  type        = bool
+  default     = false
+}
+
+variable "db_deletion_protection" {
+  description = "Enable RDS deletion protection."
+  type        = bool
+  default     = true
 }
 
 variable "db_name" {

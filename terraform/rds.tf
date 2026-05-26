@@ -3,6 +3,17 @@ resource "random_password" "db" {
   special = false
 }
 
+resource "aws_secretsmanager_secret" "db_password" {
+  name_prefix             = "${local.name}-db-password-"
+  description             = "Generated RDS password for ${local.name}"
+  recovery_window_in_days = 7
+}
+
+resource "aws_secretsmanager_secret_version" "db_password" {
+  secret_id     = aws_secretsmanager_secret.db_password.id
+  secret_string = random_password.db.result
+}
+
 resource "aws_db_subnet_group" "app" {
   name       = local.name
   subnet_ids = aws_subnet.private[*].id
@@ -40,10 +51,11 @@ resource "aws_db_instance" "app" {
   db_subnet_group_name   = aws_db_subnet_group.app.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  publicly_accessible     = false
-  skip_final_snapshot     = true
-  deletion_protection     = false
-  backup_retention_period = 0
+  publicly_accessible       = false
+  skip_final_snapshot       = var.db_skip_final_snapshot
+  final_snapshot_identifier = "${local.name}-final-snapshot"
+  deletion_protection       = var.db_deletion_protection
+  backup_retention_period   = var.db_backup_retention_period
 
   apply_immediately = true
 }
@@ -57,4 +69,9 @@ output "db_password" {
   description = "Auto-generated RDS master password. Store this securely after first apply."
   value       = random_password.db.result
   sensitive   = true
+}
+
+output "db_password_secret_arn" {
+  description = "Secrets Manager secret ARN containing the generated RDS master password."
+  value       = aws_secretsmanager_secret.db_password.arn
 }

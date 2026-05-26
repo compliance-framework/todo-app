@@ -10,7 +10,8 @@ hosted_zone_name = "example.com"        # apex Route53 hosted zone that owns dom
 # ---------------------------------------------------------------------------
 # Choose who can reach the public ALB on HTTPS.
 # Use ["0.0.0.0/0"] only when intentionally opening HTTPS to the internet.
-allowed_https_cidr_blocks = ["0.0.0.0/0"]
+allowed_https_cidr_blocks = ["203.0.113.0/24"]
+# allowed_https_cidr_blocks = ["0.0.0.0/0"]
 
 # ---------------------------------------------------------------------------
 # RDS PostgreSQL
@@ -18,8 +19,9 @@ allowed_https_cidr_blocks = ["0.0.0.0/0"]
 # db_name           = "tododb"        # default
 # db_username       = "todoapp"       # default
 # db_instance_class = "db.t3.micro"   # default
-# db_password is auto-generated — retrieve it after apply with:
-#   terraform output -raw db_password
+# db_password is auto-generated and stored in Secrets Manager.
+# Use db_backup_retention_period = 0 and db_skip_final_snapshot = true only
+# for disposable demo environments.
 
 # ---------------------------------------------------------------------------
 # Application release

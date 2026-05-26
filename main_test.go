@@ -119,6 +119,13 @@ func Test_Main_P_002C_NoRouteSPAFallbackOnlyForBrowserNavigation(t *testing.T) {
 			wantStatus: http.StatusNotFound,
 		},
 		{
+			name:       "existing static index redirect",
+			method:     http.MethodGet,
+			path:       "/index.html",
+			accept:     "application/json",
+			wantStatus: http.StatusMovedPermanently,
+		},
+		{
 			name:       "non navigation request",
 			method:     http.MethodGet,
 			path:       "/todos/123",
@@ -380,6 +387,31 @@ func Test_Main_P_009_RunSuccess(t *testing.T) {
 	if err := run(t.Context()); err != nil {
 		t.Fatalf("run returned error: %v", err)
 	}
+}
+
+// Test_Main_P_010_MainSuccess verifies main exits normally when startup succeeds.
+func Test_Main_P_010_MainSuccess(t *testing.T) {
+	originalInitDB := initDBFunc
+	originalStartServer := startServerFn
+	defer func() {
+		initDBFunc = originalInitDB
+		startServerFn = originalStartServer
+	}()
+
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("PORT", "7070")
+
+	initDBFunc = func(context.Context, db.Config) error {
+		return nil
+	}
+	startServerFn = func(_ *gin.Engine, addr string) error {
+		if addr != ":7070" {
+			t.Errorf("Expected addr :7070, got %s", addr)
+		}
+		return nil
+	}
+
+	main()
 }
 
 // Test_Main_N_001_RunAuthConfigError verifies startup fails on auth config errors.

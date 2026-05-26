@@ -25,6 +25,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/oauth2"
+	"gorm.io/gorm"
 )
 
 func setupTestDB(t *testing.T) {
@@ -2375,7 +2376,19 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 	if _, err := decodeOIDCLoginState(&http.Cookie{Value: "not-base64"}); err == nil {
 		t.Error("Expected invalid signed state cookie format error")
 	}
+	if _, err := decodeOIDCLoginState(nil); err == nil {
+		t.Error("Expected missing OIDC state cookie error")
+	}
+	if _, err := decodeOIDCLoginState(&http.Cookie{Value: ""}); err == nil {
+		t.Error("Expected empty OIDC state cookie error")
+	}
+	if _, err := decodeOIDCLoginState(&http.Cookie{Value: "payload."}); err == nil {
+		t.Error("Expected empty OIDC state signature error")
+	}
 	parts := strings.Split(cookieValue, ".")
+	if err := verifyOIDCLoginStatePayload(parts[0], "not-base64!"); err == nil {
+		t.Error("Expected invalid OIDC state signature encoding error")
+	}
 	payloadReplacement := "A"
 	if parts[0][:1] == payloadReplacement {
 		payloadReplacement = "B"
@@ -2399,6 +2412,13 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 	}
 	if _, err := decodeOIDCLoginState(&http.Cookie{Value: invalidJSONValue + "." + invalidJSONSignature}); err == nil {
 		t.Error("Expected invalid JSON state cookie error")
+	}
+	invalidPayloadSignature, err := signOIDCLoginStatePayload("!")
+	if err != nil {
+		t.Fatalf("signOIDCLoginStatePayload returned error for invalid payload: %v", err)
+	}
+	if _, err := decodeOIDCLoginState(&http.Cookie{Value: "!." + invalidPayloadSignature}); err == nil {
+		t.Error("Expected invalid OIDC state payload encoding error")
 	}
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("OIDC_STATE_SECRET", "")
@@ -2428,6 +2448,18 @@ func Test_REQ01_P_010_OIDCUtilities(t *testing.T) {
 		t.Fatalf("Expected active OIDC code verifier after cleanup, got %q ok=%v", verifier, ok)
 	}
 	resetOIDCCodeVerifierStore(t)
+	t.Setenv("OIDC_CODE_VERIFIER_STORE_MAX_ENTRIES", "")
+	if got := oidcCodeVerifierStoreMaxEntries(); got != defaultOIDCCodeVerifierStoreMaxEntries {
+		t.Fatalf("Expected default OIDC code verifier store max entries, got %d", got)
+	}
+	t.Setenv("OIDC_CODE_VERIFIER_STORE_MAX_ENTRIES", "invalid")
+	if got := oidcCodeVerifierStoreMaxEntries(); got != defaultOIDCCodeVerifierStoreMaxEntries {
+		t.Fatalf("Expected invalid OIDC code verifier store max entries to use default, got %d", got)
+	}
+	t.Setenv("OIDC_CODE_VERIFIER_STORE_MAX_ENTRIES", "0")
+	if got := oidcCodeVerifierStoreMaxEntries(); got != defaultOIDCCodeVerifierStoreMaxEntries {
+		t.Fatalf("Expected non-positive OIDC code verifier store max entries to use default, got %d", got)
+	}
 	t.Setenv("OIDC_CODE_VERIFIER_STORE_MAX_ENTRIES", "2")
 	storeOIDCCodeVerifier("oldest-state", "oldest-verifier", time.Now().Add(time.Minute))
 	storeOIDCCodeVerifier("middle-state", "middle-verifier", time.Now().Add(2*time.Minute))
@@ -2510,9 +2542,24 @@ func Test_REQ01_E_008_AttachOIDCIdentityDBError(t *testing.T) {
 }
 
 func Test_REQ01_P_015_IsUniqueConstraintErrorPostgresCode(t *testing.T) {
-	err := &pgconn.PgError{Code: "23505"}
-	if !isUniqueConstraintError(err) {
-		t.Error("Expected PostgreSQL unique violation to be treated as unique constraint error")
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "gorm duplicated key", err: gorm.ErrDuplicatedKey, want: true},
+		{name: "postgres code", err: &pgconn.PgError{Code: "23505"}, want: true},
+		{name: "sqlite text", err: errors.New("UNIQUE constraint failed: users.email"), want: true},
+		{name: "postgres text", err: errors.New("duplicate key value violates unique constraint"), want: true},
+		{name: "other error", err: errors.New("not unique"), want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isUniqueConstraintError(tc.err); got != tc.want {
+				t.Fatalf("isUniqueConstraintError() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

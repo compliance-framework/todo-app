@@ -76,9 +76,17 @@ func SetupRouter() *gin.Engine {
 			return
 		}
 
-		if _, err := dist.Open(path); err == nil && path != "" {
-			fileServer.ServeHTTP(c.Writer, c.Request)
-			return
+		if path != "" {
+			file, err := dist.Open(path)
+			if err == nil {
+				if closeErr := file.Close(); closeErr != nil {
+					log.Printf("failed to close frontend asset %q: %v", path, closeErr)
+					c.Status(http.StatusInternalServerError)
+					return
+				}
+				fileServer.ServeHTTP(c.Writer, c.Request)
+				return
+			}
 		}
 
 		segments := strings.Split(path, "/")
