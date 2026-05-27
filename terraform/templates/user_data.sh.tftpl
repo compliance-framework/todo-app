@@ -26,6 +26,13 @@ DB_PORT=${jsonencode(db_port)}
 DB_NAME=${jsonencode(db_name)}
 DB_USER=${jsonencode(db_user)}
 DB_PASSWORD_SECRET_ARN=${jsonencode(db_password_secret_arn)}
+JWT_SECRET_ARN=${jsonencode(jwt_secret_arn)}
+OIDC_ISSUER_URL=${jsonencode(oidc_issuer_url)}
+OIDC_CLIENT_ID=${jsonencode(oidc_client_id)}
+OIDC_CLIENT_SECRET_ARN=${jsonencode(oidc_client_secret_arn)}
+OIDC_REDIRECT_URL=${jsonencode(oidc_redirect_url)}
+OIDC_FRONTEND_URL=${jsonencode(oidc_frontend_url)}
+OIDC_COOKIE_SECURE=${jsonencode(oidc_cookie_secure)}
 BOOTSTRAP_ENV
 chmod 0640 /etc/todo-app/bootstrap.env
 

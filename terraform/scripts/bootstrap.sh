@@ -30,6 +30,17 @@ DB_NAME="${DB_NAME:-tododb}"
 DB_USER="${DB_USER:-todoapp}"
 DB_PASSWORD="${DB_PASSWORD:-}"
 DB_PASSWORD_SECRET_ARN="${DB_PASSWORD_SECRET_ARN:-}"
+DB_RDS_CA_BUNDLE_PATH="${DB_RDS_CA_BUNDLE_PATH:-/opt/rds-ca/global-bundle.pem}"
+DB_RDS_CA_BUNDLE_URL="${DB_RDS_CA_BUNDLE_URL:-https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem}"
+JWT_SECRET="${JWT_SECRET:-}"
+JWT_SECRET_ARN="${JWT_SECRET_ARN:-}"
+OIDC_ISSUER_URL="${OIDC_ISSUER_URL:-}"
+OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-}"
+OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-}"
+OIDC_CLIENT_SECRET_ARN="${OIDC_CLIENT_SECRET_ARN:-}"
+OIDC_REDIRECT_URL="${OIDC_REDIRECT_URL:-}"
+OIDC_FRONTEND_URL="${OIDC_FRONTEND_URL:-}"
+OIDC_COOKIE_SECURE="${OIDC_COOKIE_SECURE:-true}"
 COSIGN_CERTIFICATE_IDENTITY_REGEXP="${COSIGN_CERTIFICATE_IDENTITY_REGEXP:-https://github.com/compliance-framework/todo-app/.github/workflows/.*}"
 COSIGN_CERTIFICATE_OIDC_ISSUER="${COSIGN_CERTIFICATE_OIDC_ISSUER:-https://token.actions.githubusercontent.com}"
 
@@ -49,6 +60,13 @@ install_packages() {
     log "no supported package manager found; expected dnf, yum, or apt-get"
     exit 1
   fi
+}
+
+install_rds_ca_bundle() {
+  log "downloading RDS CA bundle"
+  install -d -m 0755 "$(dirname "$DB_RDS_CA_BUNDLE_PATH")"
+  curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --connect-timeout 10 --max-time 120 "$DB_RDS_CA_BUNDLE_URL" --output "$DB_RDS_CA_BUNDLE_PATH"
+  chmod 0644 "$DB_RDS_CA_BUNDLE_PATH"
 }
 
 install_cosign() {
@@ -147,18 +165,35 @@ validate_release_tag() {
   fi
 }
 
+fetch_secret() {
+  aws secretsmanager get-secret-value \
+    --secret-id "$1" \
+    --query SecretString \
+    --output text \
+    --region "$AWS_REGION"
+}
+
 write_environment_file() {
   if [ -n "$DB_PASSWORD_SECRET_ARN" ]; then
-    DB_PASSWORD="$(aws secretsmanager get-secret-value \
-      --secret-id "$DB_PASSWORD_SECRET_ARN" \
-      --query SecretString \
-      --output text \
-      --region "$AWS_REGION")"
+    DB_PASSWORD="$(fetch_secret "$DB_PASSWORD_SECRET_ARN")"
   fi
 
   if [ -z "$DB_PASSWORD" ]; then
     log "missing DB password; set DB_PASSWORD_SECRET_ARN or DB_PASSWORD"
     exit 1
+  fi
+
+  if [ -n "$JWT_SECRET_ARN" ]; then
+    JWT_SECRET="$(fetch_secret "$JWT_SECRET_ARN")"
+  fi
+
+  if [ -z "$JWT_SECRET" ]; then
+    log "missing JWT secret; set JWT_SECRET_ARN or JWT_SECRET"
+    exit 1
+  fi
+
+  if [ -n "$OIDC_CLIENT_SECRET_ARN" ]; then
+    OIDC_CLIENT_SECRET="$(fetch_secret "$OIDC_CLIENT_SECRET_ARN")"
   fi
 
   if [ -z "$DB_HOST" ]; then
@@ -188,6 +223,7 @@ write_environment_file() {
 
   cat >"$ENV_FILE" <<EOF
 PORT=${APP_PORT}
+JWT_SECRET=${JWT_SECRET}
 DB_DRIVER=postgres
 DB_HOST=${DB_HOST}
 DB_PORT=${DB_PORT}
@@ -196,7 +232,22 @@ DB_USER=${DB_USER}
 DB_PASSWORD=${DB_PASSWORD}
 DB_IAM_AUTH=false
 DB_REGION=${AWS_REGION}
+DB_SSLROOTCERT=${DB_RDS_CA_BUNDLE_PATH}
 EOF
+
+  if [ -n "$OIDC_CLIENT_ID" ] && [ -n "$OIDC_CLIENT_SECRET" ]; then
+    cat >>"$ENV_FILE" <<EOF
+OIDC_ISSUER_URL=${OIDC_ISSUER_URL}
+OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
+OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
+OIDC_REDIRECT_URL=${OIDC_REDIRECT_URL}
+OIDC_FRONTEND_URL=${OIDC_FRONTEND_URL}
+OIDC_COOKIE_SECURE=${OIDC_COOKIE_SECURE}
+EOF
+  else
+    log "OIDC not fully configured; skipping OIDC env vars"
+  fi
+
   chown root:"$APP_GROUP" "$ENV_FILE"
   chmod 0640 "$ENV_FILE"
 }
@@ -252,6 +303,7 @@ install_release() {
 
 main() {
   install_packages
+  install_rds_ca_bundle
   install_cosign
   ensure_user
 
