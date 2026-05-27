@@ -24,6 +24,16 @@ allowed_https_cidr_blocks = ["203.0.113.0/24"]
 # for disposable demo environments.
 
 # ---------------------------------------------------------------------------
+# OIDC login (optional) — leave client id/secret empty to disable.
+# The instance fetches the client secret from Secrets Manager at boot.
+# Redirect and frontend URLs are derived from domain_name automatically:
+#   https://<domain_name>/api/auth/oidc/callback  and  https://<domain_name>
+# ---------------------------------------------------------------------------
+# oidc_issuer_url    = "https://accounts.google.com"   # default
+# oidc_client_id     = "xxxxxxxx.apps.googleusercontent.com"
+# oidc_client_secret = "GOCSPX-xxxxxxxx"
+
+# ---------------------------------------------------------------------------
 # Application release
 # ---------------------------------------------------------------------------
 release_tag = "v1.0.0"

@@ -274,3 +274,22 @@ variable "db_username" {
   type        = string
   default     = "todoapp"
 }
+
+variable "oidc_issuer_url" {
+  description = "OIDC provider issuer URL (e.g. https://accounts.google.com). Leave default for Google."
+  type        = string
+  default     = "https://accounts.google.com"
+}
+
+variable "oidc_client_id" {
+  description = "OIDC client ID. Leave empty to disable OIDC login."
+  type        = string
+  default     = ""
+}
+
+variable "oidc_client_secret" {
+  description = "OIDC client secret. Stored in Secrets Manager. Leave empty to disable OIDC login."
+  type        = string
+  default     = ""
+  sensitive   = true
+}

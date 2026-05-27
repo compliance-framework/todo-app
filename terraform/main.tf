@@ -8,6 +8,10 @@ locals {
   target_group_name       = trimsuffix(substr("${replace(local.name, "_", "-")}-app", 0, 32), "-")
   vpc_flow_log_group_name = "/aws/vpc/${local.name}/flow-logs"
   vpc_flow_log_group_arn  = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.vpc_flow_log_group_name}"
+
+  oidc_redirect_url      = "https://${local.domain_name_normalized}/api/auth/oidc/callback"
+  oidc_frontend_url      = "https://${local.domain_name_normalized}"
+  oidc_client_secret_arn = var.oidc_client_secret == "" ? "" : aws_secretsmanager_secret.oidc_client_secret[0].arn
 }
 
 data "aws_availability_zones" "available" {
@@ -67,7 +71,7 @@ data "aws_ami" "amazon_linux" {
 
   filter {
     name   = "name"
-    values = ["al2023-ami-*-${var.ec2_ami_architecture}"]
+    values = ["al2023-ami-2023.*-${var.ec2_ami_architecture}"]
   }
 
   filter {
@@ -557,17 +561,23 @@ resource "aws_iam_role_policy_attachment" "app_instance_ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-resource "aws_iam_role_policy" "app_instance_db_password" {
-  name = "${local.name}-db-password"
+resource "aws_iam_role_policy" "app_instance_secrets" {
+  name = "${local.name}-secrets"
   role = aws_iam_role.app_instance.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = "secretsmanager:GetSecretValue"
-        Resource = aws_secretsmanager_secret.db_password.arn
+        Effect = "Allow"
+        Action = "secretsmanager:GetSecretValue"
+        Resource = concat(
+          [
+            aws_secretsmanager_secret.db_password.arn,
+            aws_secretsmanager_secret.jwt.arn,
+          ],
+          aws_secretsmanager_secret.oidc_client_secret[*].arn,
+        )
       }
     ]
   })
@@ -629,9 +639,20 @@ resource "aws_launch_template" "app" {
     db_name                            = var.db_name
     db_user                            = var.db_username
     db_password_secret_arn             = aws_secretsmanager_secret.db_password.arn
+    jwt_secret_arn                     = aws_secretsmanager_secret.jwt.arn
+    oidc_issuer_url                    = var.oidc_issuer_url
+    oidc_client_id                     = var.oidc_client_id
+    oidc_client_secret_arn             = local.oidc_client_secret_arn
+    oidc_redirect_url                  = local.oidc_redirect_url
+    oidc_frontend_url                  = local.oidc_frontend_url
+    oidc_cookie_secure                 = "true"
   }))
 
-  depends_on = [aws_secretsmanager_secret_version.db_password]
+  depends_on = [
+    aws_secretsmanager_secret_version.db_password,
+    aws_secretsmanager_secret_version.jwt,
+    aws_secretsmanager_secret_version.oidc_client_secret,
+  ]
 
   tag_specifications {
     resource_type = "instance"

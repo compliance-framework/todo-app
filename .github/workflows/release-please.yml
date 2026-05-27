@@ -64,6 +64,8 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
+        env:
+          VITE_OIDC_LOGIN_URL: /api/auth/oidc/login
         run: |
           npm ci
           npm run build
