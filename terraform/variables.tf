@@ -26,9 +26,36 @@ variable "name_prefix" {
   }
 }
 
-variable "alb_certificate_arn" {
-  description = "ACM certificate ARN for the HTTPS listener. The certificate must be in aws_region."
+variable "domain_name" {
+  description = "Fully-qualified domain name for the application (e.g. todo.ccfdemo.com). Used for the ACM certificate and ALB HTTPS listener."
   type        = string
+
+  validation {
+    condition     = can(regex("^([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$", trimspace(var.domain_name)))
+    error_message = "domain_name must be a non-empty fully-qualified domain name such as todo.example.com, without a trailing dot."
+  }
+}
+
+variable "hosted_zone_name" {
+  description = "Name of the existing Route53 public hosted zone that contains domain_name (e.g. ccfdemo.com). Terraform writes DNS validation records into this zone."
+  type        = string
+
+  validation {
+    condition     = can(regex("^([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$", trimsuffix(trimspace(var.hosted_zone_name), ".")))
+    error_message = "hosted_zone_name must be a non-empty DNS zone name such as example.com, with an optional trailing dot."
+  }
+}
+
+variable "enable_vpc_flow_logs" {
+  description = "Enable VPC flow logs to CloudWatch Logs (with a dedicated KMS key and IAM role). Disabled by default to reduce cost."
+  type        = bool
+  default     = false
+}
+
+variable "enable_alb_access_logs" {
+  description = "Enable ALB access logs to an S3 bucket. Disabled by default to reduce cost."
+  type        = bool
+  default     = false
 }
 
 variable "allowed_https_cidr_blocks" {
@@ -94,27 +121,15 @@ variable "app_port" {
 }
 
 variable "release_tag" {
-  description = "Desired todo-app release tag written to SSM Parameter Store and used as the bootstrap fallback when the SSM release tag parameter is missing or empty."
+  description = "todo-app release tag baked into bootstrap.env as FALLBACK_RELEASE_TAG. Changes update the launch template for new or replaced instances; run an instance refresh, replacement, or ASG rollout to install a new release on existing capacity."
   type        = string
   default     = "v0.1.0"
-}
-
-variable "release_tag_parameter_name" {
-  description = "SSM Parameter name that stores the target release tag used by bootstrap upgrades. When null, the stack derives a name from name_prefix and environment."
-  type        = string
-  default     = null
-  nullable    = true
-
-  validation {
-    condition     = var.release_tag_parameter_name == null ? true : startswith(var.release_tag_parameter_name, "/")
-    error_message = "release_tag_parameter_name must be null or an absolute SSM parameter path beginning with /."
-  }
 }
 
 variable "github_repository" {
   description = "GitHub repository that publishes todo-app release artifacts, in owner/repo form."
   type        = string
-  default     = "ContainerSolutions/todo-app"
+  default     = "compliance-framework/todo-app"
 }
 
 variable "release_artifact_name" {
@@ -132,7 +147,7 @@ variable "release_signature_bundle_name" {
 variable "cosign_certificate_identity_regexp" {
   description = "Expected signing identity regexp for cosign keyless verification."
   type        = string
-  default     = "https://github.com/ContainerSolutions/todo-app/.github/workflows/.*"
+  default     = "https://github.com/compliance-framework/todo-app/.github/workflows/.*"
 }
 
 variable "cosign_certificate_oidc_issuer" {
@@ -145,6 +160,12 @@ variable "cosign_version" {
   description = "Cosign version installed by the bootstrap script."
   type        = string
   default     = "v2.4.3"
+}
+
+variable "skip_cosign_verify" {
+  description = "Skip cosign signature verification during bootstrap. Signature verification is enabled by default; set to true only when release assets do not include a sigstore bundle."
+  type        = bool
+  default     = false
 }
 
 variable "cosign_linux_amd64_sha256" {
@@ -205,4 +226,51 @@ variable "ticket_tag" {
   description = "Optional Ticket tag value applied to all resources. Leave null to omit the Ticket tag."
   type        = string
   default     = null
+}
+
+variable "db_instance_class" {
+  description = "RDS instance class."
+  type        = string
+  default     = "db.t3.micro"
+}
+
+variable "db_allocated_storage" {
+  description = "Allocated storage for the RDS instance in GiB."
+  type        = number
+  default     = 20
+}
+
+variable "db_backup_retention_period" {
+  description = "Number of days to retain automated RDS backups. Set to 0 only for disposable demo environments."
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = var.db_backup_retention_period >= 0 && var.db_backup_retention_period <= 35
+    error_message = "db_backup_retention_period must be between 0 and 35 days."
+  }
+}
+
+variable "db_skip_final_snapshot" {
+  description = "Skip the final RDS snapshot on destroy. Set true only for disposable demo environments."
+  type        = bool
+  default     = false
+}
+
+variable "db_deletion_protection" {
+  description = "Enable RDS deletion protection."
+  type        = bool
+  default     = true
+}
+
+variable "db_name" {
+  description = "Name of the PostgreSQL database created on the RDS instance."
+  type        = string
+  default     = "tododb"
+}
+
+variable "db_username" {
+  description = "Master username for the RDS PostgreSQL instance."
+  type        = string
+  default     = "todoapp"
 }

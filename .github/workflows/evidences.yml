@@ -67,7 +67,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: latest
+          version: v2.12.2
           args: --timeout=5m --output.sarif.path out_sarif.json
       
       - name: upload sarif to CCF

@@ -79,8 +79,84 @@ func Test_Main_P_002B_AuthConfig(t *testing.T) {
 	}
 }
 
-// Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic verifies panic responses are audited.
-func Test_Main_P_002C_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
+func Test_Main_P_002C_NoRouteSPAFallbackOnlyForBrowserNavigation(t *testing.T) {
+	setupTestDB(t)
+	router := SetupRouter()
+
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		accept     string
+		wantStatus int
+	}{
+		{
+			name:       "SPA route with HTML accept header",
+			method:     http.MethodGet,
+			path:       "/todos/123",
+			accept:     "text/html",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "missing API route",
+			method:     http.MethodGet,
+			path:       "/api/missing",
+			accept:     "text/html",
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "API namespace root",
+			method:     http.MethodGet,
+			path:       "/api",
+			accept:     "text/html",
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "missing static asset",
+			method:     http.MethodGet,
+			path:       "/assets/missing.js",
+			accept:     "text/html",
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "existing static index redirect",
+			method:     http.MethodGet,
+			path:       "/index.html",
+			accept:     "application/json",
+			wantStatus: http.StatusMovedPermanently,
+		},
+		{
+			name:       "non navigation request",
+			method:     http.MethodGet,
+			path:       "/todos/123",
+			accept:     "application/json",
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "non GET request",
+			method:     http.MethodPost,
+			path:       "/todos/123",
+			accept:     "text/html",
+			wantStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req, _ := http.NewRequestWithContext(t.Context(), tc.method, tc.path, nil)
+			req.Header.Set("Accept", tc.accept)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if w.Code != tc.wantStatus {
+				t.Errorf("Expected status %d, got %d", tc.wantStatus, w.Code)
+			}
+		})
+	}
+}
+
+// Test_Main_P_002D_AuditLogMiddlewareLogsRecoveredPanic verifies panic responses are audited.
+func Test_Main_P_002D_AuditLogMiddlewareLogsRecoveredPanic(t *testing.T) {
 	originalStdout := os.Stdout
 	defer func() {
 		os.Stdout = originalStdout
@@ -311,6 +387,31 @@ func Test_Main_P_009_RunSuccess(t *testing.T) {
 	if err := run(t.Context()); err != nil {
 		t.Fatalf("run returned error: %v", err)
 	}
+}
+
+// Test_Main_P_010_MainSuccess verifies main exits normally when startup succeeds.
+func Test_Main_P_010_MainSuccess(t *testing.T) {
+	originalInitDB := initDBFunc
+	originalStartServer := startServerFn
+	defer func() {
+		initDBFunc = originalInitDB
+		startServerFn = originalStartServer
+	}()
+
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("PORT", "7070")
+
+	initDBFunc = func(context.Context, db.Config) error {
+		return nil
+	}
+	startServerFn = func(_ *gin.Engine, addr string) error {
+		if addr != ":7070" {
+			t.Errorf("Expected addr :7070, got %s", addr)
+		}
+		return nil
+	}
+
+	main()
 }
 
 // Test_Main_N_001_RunAuthConfigError verifies startup fails on auth config errors.

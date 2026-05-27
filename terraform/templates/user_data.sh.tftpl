@@ -20,7 +20,12 @@ FALLBACK_RELEASE_TAG=${jsonencode(fallback_release_tag)}
 GITHUB_REPOSITORY=${jsonencode(github_repository)}
 RELEASE_ARTIFACT_NAME=${jsonencode(release_artifact_name)}
 RELEASE_SIGNATURE_BUNDLE_NAME=${jsonencode(release_signature_bundle_name)}
-RELEASE_TAG_PARAMETER_NAME=${jsonencode(release_tag_parameter_name)}
+SKIP_COSIGN_VERIFY=${jsonencode(skip_cosign_verify)}
+DB_HOST=${jsonencode(db_host)}
+DB_PORT=${jsonencode(db_port)}
+DB_NAME=${jsonencode(db_name)}
+DB_USER=${jsonencode(db_user)}
+DB_PASSWORD_SECRET_ARN=${jsonencode(db_password_secret_arn)}
 BOOTSTRAP_ENV
 chmod 0640 /etc/todo-app/bootstrap.env
 

@@ -1,14 +1,13 @@
 locals {
-  availability_zone_count    = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs), length(data.aws_availability_zones.available.names))
-  name                       = "${var.name_prefix}-${var.environment}"
-  alb_name                   = substr(replace(local.name, "_", "-"), 0, 32)
-  alb_logs_bucket_prefix     = "${substr(local.name, 0, 27)}-alb-logs-"
-  target_group_name          = trimsuffix(substr("${replace(local.name, "_", "-")}-app", 0, 32), "-")
-  vpc_flow_log_group_name    = "/aws/vpc/${local.name}/flow-logs"
-  vpc_flow_log_group_arn     = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.vpc_flow_log_group_name}"
-  release_tag_parameter_name = coalesce(var.release_tag_parameter_name, "/${local.name}/release-tag")
-
-  bootstrap_parameter_arns = [aws_ssm_parameter.release_tag.arn]
+  availability_zone_count = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs), length(data.aws_availability_zones.available.names))
+  name                    = "${var.name_prefix}-${var.environment}"
+  alb_name                = substr(replace(local.name, "_", "-"), 0, 32)
+  alb_logs_bucket_prefix  = "${substr(local.name, 0, 27)}-alb-logs-"
+  domain_name_normalized  = trimprefix(trimsuffix(lower(var.domain_name), "."), "*.")
+  hosted_zone_normalized  = trimsuffix(lower(var.hosted_zone_name), ".")
+  target_group_name       = trimsuffix(substr("${replace(local.name, "_", "-")}-app", 0, 32), "-")
+  vpc_flow_log_group_name = "/aws/vpc/${local.name}/flow-logs"
+  vpc_flow_log_group_arn  = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.vpc_flow_log_group_name}"
 }
 
 data "aws_availability_zones" "available" {
@@ -38,6 +37,14 @@ resource "terraform_data" "input_validation" {
 
     precondition {
       condition = (
+        local.domain_name_normalized == local.hosted_zone_normalized ||
+        endswith(local.domain_name_normalized, ".${local.hosted_zone_normalized}")
+      )
+      error_message = "domain_name must be equal to hosted_zone_name or a subdomain of it so ACM DNS validation records are created in the correct Route53 zone."
+    }
+
+    precondition {
+      condition = (
         (var.ec2_ami_architecture == "x86_64" && can(regex("linux-amd64", var.release_artifact_name))) ||
         (var.ec2_ami_architecture == "arm64" && can(regex("linux-arm64", var.release_artifact_name)))
       )
@@ -45,7 +52,7 @@ resource "terraform_data" "input_validation" {
     }
 
     precondition {
-      condition = (
+      condition = var.skip_cosign_verify || (
         (var.ec2_ami_architecture == "x86_64" && can(regex("linux-amd64\\.bundle$", var.release_signature_bundle_name))) ||
         (var.ec2_ami_architecture == "arm64" && can(regex("linux-arm64\\.bundle$", var.release_signature_bundle_name)))
       )
@@ -178,12 +185,16 @@ resource "aws_route_table_association" "private" {
 }
 
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
+  count = var.enable_vpc_flow_logs ? 1 : 0
+
   name              = local.vpc_flow_log_group_name
-  kms_key_id        = aws_kms_key.vpc_flow_logs.arn
+  kms_key_id        = aws_kms_key.vpc_flow_logs[0].arn
   retention_in_days = 30
 }
 
 resource "aws_kms_key" "vpc_flow_logs" {
+  count = var.enable_vpc_flow_logs ? 1 : 0
+
   description         = "KMS key for ${local.name} VPC flow logs"
   enable_key_rotation = true
 
@@ -224,11 +235,15 @@ resource "aws_kms_key" "vpc_flow_logs" {
 }
 
 resource "aws_kms_alias" "vpc_flow_logs" {
+  count = var.enable_vpc_flow_logs ? 1 : 0
+
   name          = "alias/${local.name}-vpc-flow-logs"
-  target_key_id = aws_kms_key.vpc_flow_logs.key_id
+  target_key_id = aws_kms_key.vpc_flow_logs[0].key_id
 }
 
 resource "aws_iam_role" "vpc_flow_logs" {
+  count = var.enable_vpc_flow_logs ? 1 : 0
+
   name = "${local.name}-vpc-flow-logs"
 
   assume_role_policy = jsonencode({
@@ -246,8 +261,10 @@ resource "aws_iam_role" "vpc_flow_logs" {
 }
 
 resource "aws_iam_role_policy" "vpc_flow_logs" {
+  count = var.enable_vpc_flow_logs ? 1 : 0
+
   name = "${local.name}-vpc-flow-logs"
-  role = aws_iam_role.vpc_flow_logs.id
+  role = aws_iam_role.vpc_flow_logs[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -260,17 +277,19 @@ resource "aws_iam_role_policy" "vpc_flow_logs" {
           "logs:DescribeLogGroups",
           "logs:DescribeLogStreams"
         ]
-        Resource = "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*"
+        Resource = "${aws_cloudwatch_log_group.vpc_flow_logs[0].arn}:*"
       }
     ]
   })
 }
 
 resource "aws_flow_log" "app" {
+  count = var.enable_vpc_flow_logs ? 1 : 0
+
   vpc_id               = aws_vpc.app.id
   traffic_type         = "ALL"
-  log_destination      = aws_cloudwatch_log_group.vpc_flow_logs.arn
-  iam_role_arn         = aws_iam_role.vpc_flow_logs.arn
+  log_destination      = aws_cloudwatch_log_group.vpc_flow_logs[0].arn
+  iam_role_arn         = aws_iam_role.vpc_flow_logs[0].arn
   log_destination_type = "cloud-watch-logs"
 }
 
@@ -342,12 +361,25 @@ resource "aws_vpc_security_group_egress_rule" "app_dns_tcp" {
   ip_protocol       = "tcp"
 }
 
+resource "aws_vpc_security_group_egress_rule" "app_rds" {
+  security_group_id            = aws_security_group.app.id
+  description                  = "PostgreSQL to RDS"
+  referenced_security_group_id = aws_security_group.rds.id
+  from_port                    = 5432
+  to_port                      = 5432
+  ip_protocol                  = "tcp"
+}
+
 resource "aws_s3_bucket" "alb_logs" {
+  count = var.enable_alb_access_logs ? 1 : 0
+
   bucket_prefix = local.alb_logs_bucket_prefix
 }
 
 resource "aws_s3_bucket_ownership_controls" "alb_logs" {
-  bucket = aws_s3_bucket.alb_logs.id
+  count = var.enable_alb_access_logs ? 1 : 0
+
+  bucket = aws_s3_bucket.alb_logs[0].id
 
   rule {
     object_ownership = "BucketOwnerPreferred"
@@ -355,14 +387,18 @@ resource "aws_s3_bucket_ownership_controls" "alb_logs" {
 }
 
 resource "aws_s3_bucket_acl" "alb_logs" {
-  bucket = aws_s3_bucket.alb_logs.id
+  count = var.enable_alb_access_logs ? 1 : 0
+
+  bucket = aws_s3_bucket.alb_logs[0].id
   acl    = "private"
 
   depends_on = [aws_s3_bucket_ownership_controls.alb_logs]
 }
 
 resource "aws_s3_bucket_public_access_block" "alb_logs" {
-  bucket = aws_s3_bucket.alb_logs.id
+  count = var.enable_alb_access_logs ? 1 : 0
+
+  bucket = aws_s3_bucket.alb_logs[0].id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -371,7 +407,9 @@ resource "aws_s3_bucket_public_access_block" "alb_logs" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "alb_logs" {
-  bucket = aws_s3_bucket.alb_logs.id
+  count = var.enable_alb_access_logs ? 1 : 0
+
+  bucket = aws_s3_bucket.alb_logs[0].id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -381,11 +419,15 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "alb_logs" {
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
-  bucket = aws_s3_bucket.alb_logs.id
+  count = var.enable_alb_access_logs ? 1 : 0
+
+  bucket = aws_s3_bucket.alb_logs[0].id
 
   rule {
     id     = "expire-alb-logs"
     status = "Enabled"
+
+    filter {}
 
     expiration {
       days = 90
@@ -394,7 +436,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
 }
 
 resource "aws_s3_bucket_policy" "alb_logs" {
-  bucket = aws_s3_bucket.alb_logs.id
+  count = var.enable_alb_access_logs ? 1 : 0
+
+  bucket = aws_s3_bucket.alb_logs[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -405,7 +449,7 @@ resource "aws_s3_bucket_policy" "alb_logs" {
           Service = "logdelivery.elasticloadbalancing.amazonaws.com"
         }
         Action   = "s3:GetBucketAcl"
-        Resource = aws_s3_bucket.alb_logs.arn
+        Resource = aws_s3_bucket.alb_logs[0].arn
         Condition = {
           StringEquals = {
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
@@ -422,7 +466,7 @@ resource "aws_s3_bucket_policy" "alb_logs" {
           Service = "logdelivery.elasticloadbalancing.amazonaws.com"
         }
         Action   = "s3:PutObject"
-        Resource = "${aws_s3_bucket.alb_logs.arn}/alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+        Resource = "${aws_s3_bucket.alb_logs[0].arn}/alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
         Condition = {
           StringEquals = {
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
@@ -447,10 +491,13 @@ resource "aws_lb" "app" {
   security_groups            = [aws_security_group.alb.id]
   subnets                    = aws_subnet.public[*].id
 
-  access_logs {
-    bucket  = aws_s3_bucket.alb_logs.id
-    prefix  = "alb"
-    enabled = true
+  dynamic "access_logs" {
+    for_each = var.enable_alb_access_logs ? [1] : []
+    content {
+      bucket  = aws_s3_bucket.alb_logs[0].id
+      prefix  = "alb"
+      enabled = true
+    }
   }
 
   depends_on = [aws_s3_bucket_policy.alb_logs]
@@ -480,20 +527,12 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = var.alb_certificate_arn
+  certificate_arn   = aws_acm_certificate_validation.app.certificate_arn
 
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app.arn
   }
-}
-
-resource "aws_ssm_parameter" "release_tag" {
-  name        = local.release_tag_parameter_name
-  description = "Target todo-app release tag installed by bootstrap.sh"
-  type        = "String"
-  value       = var.release_tag
-  overwrite   = true
 }
 
 resource "aws_iam_role" "app_instance" {
@@ -513,54 +552,31 @@ resource "aws_iam_role" "app_instance" {
   })
 }
 
-resource "aws_iam_role_policy" "app_instance" {
-  name = "${local.name}-ec2"
+resource "aws_iam_role_policy_attachment" "app_instance_ssm" {
+  role       = aws_iam_role.app_instance.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_role_policy" "app_instance_db_password" {
+  name = "${local.name}-db-password"
   role = aws_iam_role.app_instance.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ReadBootstrapParameters"
-        Effect = "Allow"
-        Action = [
-          "ssm:GetParameter"
-        ]
-        Resource = local.bootstrap_parameter_arns
-      },
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "app_instance_ssm" {
-  role       = aws_iam_role.app_instance.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
-resource "aws_iam_instance_profile" "app" {
-  name = "${local.name}-ec2"
-  role = aws_iam_role.app_instance.name
-}
-
-resource "aws_ssm_document" "upgrade" {
-  name          = "${local.name}-upgrade"
-  document_type = "Command"
-
-  content = jsonencode({
-    schemaVersion = "2.2"
-    description   = "Rerun todo-app bootstrap.sh to install the release tag from SSM Parameter Store."
-    mainSteps = [
-      {
-        action = "aws:runShellScript"
-        name   = "runBootstrap"
-        inputs = {
-          runCommand = [
-            "/opt/todo-app/bootstrap.sh"
-          ]
-        }
+        Effect   = "Allow"
+        Action   = "secretsmanager:GetSecretValue"
+        Resource = aws_secretsmanager_secret.db_password.arn
       }
     ]
   })
+}
+
+resource "aws_iam_instance_profile" "app" {
+  provider = aws.no_default_tags
+  name     = "${local.name}-ec2"
+  role     = aws_iam_role.app_instance.name
 }
 
 resource "aws_launch_template" "app" {
@@ -583,7 +599,7 @@ resource "aws_launch_template" "app" {
 
     ebs {
       encrypted   = true
-      volume_size = 20
+      volume_size = 30
       volume_type = "gp3"
     }
   }
@@ -607,8 +623,15 @@ resource "aws_launch_template" "app" {
     github_repository                  = var.github_repository
     release_artifact_name              = var.release_artifact_name
     release_signature_bundle_name      = var.release_signature_bundle_name
-    release_tag_parameter_name         = local.release_tag_parameter_name
+    skip_cosign_verify                 = var.skip_cosign_verify
+    db_host                            = aws_db_instance.app.address
+    db_port                            = aws_db_instance.app.port
+    db_name                            = var.db_name
+    db_user                            = var.db_username
+    db_password_secret_arn             = aws_secretsmanager_secret.db_password.arn
   }))
+
+  depends_on = [aws_secretsmanager_secret_version.db_password]
 
   tag_specifications {
     resource_type = "instance"

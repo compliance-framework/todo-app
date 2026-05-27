@@ -17,14 +17,20 @@ SERVICE_FILE="${SERVICE_FILE:-/etc/systemd/system/todo-app.service}"
 AWS_REGION="${AWS_REGION:-eu-west-2}"
 APP_PORT="${APP_PORT:-8080}"
 FALLBACK_RELEASE_TAG="${FALLBACK_RELEASE_TAG:-v0.1.0}"
-RELEASE_TAG_PARAMETER_NAME="${RELEASE_TAG_PARAMETER_NAME:-/todo-app/release-tag}"
-GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-ContainerSolutions/todo-app}"
+GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-compliance-framework/todo-app}"
 RELEASE_ARTIFACT_NAME="${RELEASE_ARTIFACT_NAME:-todo-app-linux-amd64}"
 RELEASE_SIGNATURE_BUNDLE_NAME="${RELEASE_SIGNATURE_BUNDLE_NAME:-todo-app-linux-amd64.bundle}"
+SKIP_COSIGN_VERIFY="${SKIP_COSIGN_VERIFY:-false}"
 COSIGN_VERSION="${COSIGN_VERSION:-v2.4.3}"
 COSIGN_LINUX_AMD64_SHA256="${COSIGN_LINUX_AMD64_SHA256:-}"
 COSIGN_LINUX_ARM64_SHA256="${COSIGN_LINUX_ARM64_SHA256:-}"
-COSIGN_CERTIFICATE_IDENTITY_REGEXP="${COSIGN_CERTIFICATE_IDENTITY_REGEXP:-https://github.com/ContainerSolutions/todo-app/.github/workflows/.*}"
+DB_HOST="${DB_HOST:-}"
+DB_PORT="${DB_PORT:-5432}"
+DB_NAME="${DB_NAME:-tododb}"
+DB_USER="${DB_USER:-todoapp}"
+DB_PASSWORD="${DB_PASSWORD:-}"
+DB_PASSWORD_SECRET_ARN="${DB_PASSWORD_SECRET_ARN:-}"
+COSIGN_CERTIFICATE_IDENTITY_REGEXP="${COSIGN_CERTIFICATE_IDENTITY_REGEXP:-https://github.com/compliance-framework/todo-app/.github/workflows/.*}"
 COSIGN_CERTIFICATE_OIDC_ISSUER="${COSIGN_CERTIFICATE_OIDC_ISSUER:-https://token.actions.githubusercontent.com}"
 
 log() {
@@ -33,7 +39,7 @@ log() {
 
 install_packages() {
   if command -v dnf >/dev/null 2>&1; then
-    dnf install -y awscli curl shadow-utils
+    dnf install -y --allowerasing awscli curl shadow-utils
   elif command -v yum >/dev/null 2>&1; then
     yum install -y awscli curl shadow-utils
   elif command -v apt-get >/dev/null 2>&1; then
@@ -97,29 +103,6 @@ ensure_user() {
   install -d -o root -g "$APP_GROUP" -m 0750 /etc/todo-app
 }
 
-target_release_tag() {
-  local output
-  if ! output="$(aws ssm get-parameter \
-    --region "$AWS_REGION" \
-    --name "$RELEASE_TAG_PARAMETER_NAME" \
-    --query 'Parameter.Value' \
-    --output text 2>&1)"; then
-    if printf '%s' "$output" | grep -q 'ParameterNotFound'; then
-      printf '%s' "$FALLBACK_RELEASE_TAG"
-      return 0
-    fi
-
-    log "failed to read SSM parameter ${RELEASE_TAG_PARAMETER_NAME}: $output"
-    exit 1
-  fi
-
-  if [ -n "$output" ] && [ "$output" != "None" ]; then
-    printf '%s' "$output"
-  else
-    printf '%s' "$FALLBACK_RELEASE_TAG"
-  fi
-}
-
 download_and_verify() {
   local tag="$1"
   local work_dir="$2"
@@ -128,15 +111,19 @@ download_and_verify() {
   local base_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}"
 
   log "downloading release ${tag}"
-  curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 120 "${base_url}/${RELEASE_ARTIFACT_NAME}" --output "$artifact"
-  curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 120 "${base_url}/${RELEASE_SIGNATURE_BUNDLE_NAME}" --output "$bundle"
+  curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --connect-timeout 10 --max-time 120 "${base_url}/${RELEASE_ARTIFACT_NAME}" --output "$artifact"
 
-  log "verifying sigstore signature for ${RELEASE_ARTIFACT_NAME}"
-  cosign verify-blob \
-    --bundle "$bundle" \
-    --certificate-identity-regexp "$COSIGN_CERTIFICATE_IDENTITY_REGEXP" \
-    --certificate-oidc-issuer "$COSIGN_CERTIFICATE_OIDC_ISSUER" \
-    "$artifact"
+  if [ "$SKIP_COSIGN_VERIFY" = "true" ]; then
+    log "skipping cosign verification (SKIP_COSIGN_VERIFY=true)"
+  else
+    curl --fail --location --silent --show-error --retry 5 --retry-delay 2 --connect-timeout 10 --max-time 120 "${base_url}/${RELEASE_SIGNATURE_BUNDLE_NAME}" --output "$bundle"
+    log "verifying sigstore signature for ${RELEASE_ARTIFACT_NAME}"
+    cosign verify-blob \
+      --bundle "$bundle" \
+      --certificate-identity-regexp "$COSIGN_CERTIFICATE_IDENTITY_REGEXP" \
+      --certificate-oidc-issuer "$COSIGN_CERTIFICATE_OIDC_ISSUER" \
+      "$artifact"
+  fi
 
   chmod 0755 "$artifact"
 }
@@ -161,9 +148,54 @@ validate_release_tag() {
 }
 
 write_environment_file() {
+  if [ -n "$DB_PASSWORD_SECRET_ARN" ]; then
+    DB_PASSWORD="$(aws secretsmanager get-secret-value \
+      --secret-id "$DB_PASSWORD_SECRET_ARN" \
+      --query SecretString \
+      --output text \
+      --region "$AWS_REGION")"
+  fi
+
+  if [ -z "$DB_PASSWORD" ]; then
+    log "missing DB password; set DB_PASSWORD_SECRET_ARN or DB_PASSWORD"
+    exit 1
+  fi
+
+  if [ -z "$DB_HOST" ]; then
+    log "missing DB_HOST"
+    exit 1
+  fi
+
+  if [ -z "$DB_PORT" ]; then
+    log "missing DB_PORT"
+    exit 1
+  fi
+
+  if ! [[ "$DB_PORT" =~ ^[0-9]+$ ]] || [ "$DB_PORT" -lt 1 ] || [ "$DB_PORT" -gt 65535 ]; then
+    log "invalid DB_PORT: $DB_PORT"
+    exit 1
+  fi
+
+  if [ -z "$DB_NAME" ]; then
+    log "missing DB_NAME"
+    exit 1
+  fi
+
+  if [ -z "$DB_USER" ]; then
+    log "missing DB_USER"
+    exit 1
+  fi
+
   cat >"$ENV_FILE" <<EOF
 PORT=${APP_PORT}
-DB_PATH=/var/lib/todo-app/todo_app.db
+DB_DRIVER=postgres
+DB_HOST=${DB_HOST}
+DB_PORT=${DB_PORT}
+DB_NAME=${DB_NAME}
+DB_USER=${DB_USER}
+DB_PASSWORD=${DB_PASSWORD}
+DB_IAM_AUTH=false
+DB_REGION=${AWS_REGION}
 EOF
   chown root:"$APP_GROUP" "$ENV_FILE"
   chmod 0640 "$ENV_FILE"
@@ -224,8 +256,8 @@ main() {
   ensure_user
 
   local tag
-  tag="$(target_release_tag)"
-  log "target release tag: ${tag}"
+  tag="${FALLBACK_RELEASE_TAG}"
+  log "release tag: ${tag}"
 
   install_release "$tag"
   write_environment_file
