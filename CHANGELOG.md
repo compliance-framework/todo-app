@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0](https://github.com/compliance-framework/todo-app/compare/v0.4.4...v0.5.0) (2026-05-27)
+
+
+### Features
+
+* todo-app-frontend ([#37](https://github.com/compliance-framework/todo-app/issues/37)) ([c3eb7be](https://github.com/compliance-framework/todo-app/commit/c3eb7beeda0afae1c2f134fa83b40b52d50fb3ac))
+
+
+### Bug Fixes
+
+* add optional flags for terraform ([#43](https://github.com/compliance-framework/todo-app/issues/43)) ([346e057](https://github.com/compliance-framework/todo-app/commit/346e057d36937680f4d9405887bf33b2ec2da104))
+* fix ci and go so frontend is built within ([346e057](https://github.com/compliance-framework/todo-app/commit/346e057d36937680f4d9405887bf33b2ec2da104))
+* fix terraform and bootstrap so it brings app up ([346e057](https://github.com/compliance-framework/todo-app/commit/346e057d36937680f4d9405887bf33b2ec2da104))
+* oidc ([#40](https://github.com/compliance-framework/todo-app/issues/40)) ([e85d6c5](https://github.com/compliance-framework/todo-app/commit/e85d6c51664508a4f19088d960e89d01335d4541))
+
 ## [0.4.2](https://github.com/compliance-framework/todo-app/compare/v0.4.1...v0.4.2) (2026-01-22)
 
 
