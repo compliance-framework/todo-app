@@ -308,7 +308,7 @@ variable "enable_ccf" {
 }
 
 variable "ccf_domain_name" {
-  description = "Fully-qualified domain name for the CCF stack (e.g. ccf.ccfdemo.com). Must equal hosted_zone_name or be a subdomain of it. Added as a SAN on the ACM certificate and routed by the ALB to the CCF containers. Required when enable_ccf is true."
+  description = "Fully-qualified domain name for the CCF stack (e.g. ccf.ccfdemo.com). Must equal hosted_zone_name or be a subdomain of it. Provisioned with a dedicated ACM certificate attached to the ALB HTTPS listener via SNI and routed to the CCF containers. Required when enable_ccf is true."
   type        = string
   default     = ""
 

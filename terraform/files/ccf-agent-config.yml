@@ -152,7 +152,7 @@ plugins:
   github_repos:
     schedule: "* * * * *"
     config:
-      token: "" # This token is injected using the CCF_PLUGINS_GITHUB_REPOSITORIES_CONFIG_TOKEN variable in .env
+      token: "" # This token is injected using the CCF_PLUGINS_GITHUB_REPOS_CONFIG_TOKEN variable in .env
       organization: compliance-framework
       included_repositories: todo-app
       deployment_lookback_days: "90"

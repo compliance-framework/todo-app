@@ -78,6 +78,11 @@ resource "terraform_data" "input_validation" {
     }
 
     precondition {
+      condition     = !var.enable_ccf || local.ccf_domain_name_normalized != local.domain_name_normalized
+      error_message = "When enable_ccf is true, ccf_domain_name must differ from domain_name so the CCF host-header listener rules do not override the todo-app host."
+    }
+
+    precondition {
       condition = !var.enable_ccf || (
         var.ccf_api_host_port != var.app_port &&
         var.ccf_ui_host_port != var.app_port &&
@@ -601,7 +606,7 @@ resource "aws_lb_target_group" "app" {
 resource "aws_lb_target_group" "ccf_api" {
   count = var.enable_ccf ? 1 : 0
 
-  name     = trimsuffix(substr("${replace(local.name, "_", "-")}-ccf-api", 0, 32), "-")
+  name     = "${trimsuffix(substr(replace(local.name, "_", "-"), 0, 23), "-")}-ccf-api"
   port     = var.ccf_api_host_port
   protocol = "HTTP"
   vpc_id   = aws_vpc.app.id
@@ -622,7 +627,7 @@ resource "aws_lb_target_group" "ccf_api" {
 resource "aws_lb_target_group" "ccf_ui" {
   count = var.enable_ccf ? 1 : 0
 
-  name     = trimsuffix(substr("${replace(local.name, "_", "-")}-ccf-ui", 0, 32), "-")
+  name     = "${trimsuffix(substr(replace(local.name, "_", "-"), 0, 23), "-")}-ccf-ui"
   port     = var.ccf_ui_host_port
   protocol = "HTTP"
   vpc_id   = aws_vpc.app.id
@@ -857,6 +862,8 @@ resource "aws_launch_template" "app" {
     aws_secretsmanager_secret_version.db_password,
     aws_secretsmanager_secret_version.jwt,
     aws_secretsmanager_secret_version.oidc_client_secret,
+    aws_secretsmanager_secret_version.ccf_sso_google_client_secret,
+    aws_secretsmanager_secret_version.ccf_agent_github_token,
   ]
 
   tag_specifications {
