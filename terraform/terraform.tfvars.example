@@ -73,6 +73,14 @@ cosign_linux_arm64_sha256 = "REPLACE_WITH_ARM64_SHA256_FROM_RELEASE_PAGE"
 # ccf_sso_google_hosted_domain = "container-solutions.com"   # hd: -> ccf-authorized-users
 # ccf_sso_admin_email          = "admin@container-solutions.com"  # email: -> ccf-admins (single user)
 # ccf_sso_domain_admins        = true   # every hosted-domain user also gets ccf-admins (broad)
+#
+# CCF agent (assessor) — runs as a container on the app host, collecting evidence
+# via plugins and reporting to the local CCF API. AWS plugins authenticate with
+# the instance role (read-only assessment perms added automatically); the
+# GitHub/dependabot plugins need a PAT, stored in Secrets Manager. Requires enable_ccf.
+# enable_ccf_agent       = true
+# ccf_agent_image        = "ghcr.io/compliance-framework/agent:0.7.0"  # default
+# ccf_agent_github_token = "github_pat_xxx"   # leave empty to run AWS plugins only
 
 # ---------------------------------------------------------------------------
 # Optional overrides (uncomment to change defaults)

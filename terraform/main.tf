@@ -15,6 +15,7 @@ locals {
   oidc_client_secret_arn = var.oidc_client_secret == "" ? "" : aws_secretsmanager_secret.oidc_client_secret[0].arn
 
   ccf_sso_google_client_secret_arn = var.enable_ccf && var.ccf_sso_google_client_secret != "" ? aws_secretsmanager_secret.ccf_sso_google_client_secret[0].arn : ""
+  ccf_agent_github_token_arn       = var.enable_ccf_agent && var.ccf_agent_github_token != "" ? aws_secretsmanager_secret.ccf_agent_github_token[0].arn : ""
 }
 
 data "aws_availability_zones" "available" {
@@ -83,6 +84,11 @@ resource "terraform_data" "input_validation" {
         var.ccf_api_host_port != var.ccf_ui_host_port
       )
       error_message = "When enable_ccf is true, ccf_api_host_port, ccf_ui_host_port, and app_port must all be distinct so the CCF containers and the todo-app do not collide on the host."
+    }
+
+    precondition {
+      condition     = !var.enable_ccf_agent || var.enable_ccf
+      error_message = "enable_ccf_agent requires enable_ccf = true: the agent reports to the CCF API running on the same host."
     }
   }
 }
@@ -731,10 +737,32 @@ resource "aws_iam_role_policy" "app_instance_secrets" {
           ],
           aws_secretsmanager_secret.oidc_client_secret[*].arn,
           aws_secretsmanager_secret.ccf_sso_google_client_secret[*].arn,
+          aws_secretsmanager_secret.ccf_agent_github_token[*].arn,
         )
       }
     ]
   })
+}
+
+# Read-only assessment permissions for the CCF agent's AWS plugins. Rather than
+# hand-curate per-plugin actions (brittle, and incomplete as plugins evolve), we
+# attach AWS-managed audit policies that broadly cover Describe/List/Get of
+# configuration. SecurityAudit + ViewOnlyAccess are deliberately chosen over the
+# broader ReadOnlyAccess because they do NOT grant data-plane reads such as
+# secretsmanager:GetSecretValue or s3:GetObject — so the agent assesses secret
+# configuration without ever reading secret values.
+resource "aws_iam_role_policy_attachment" "app_instance_security_audit" {
+  count = var.enable_ccf_agent ? 1 : 0
+
+  role       = aws_iam_role.app_instance.name
+  policy_arn = "arn:aws:iam::aws:policy/SecurityAudit"
+}
+
+resource "aws_iam_role_policy_attachment" "app_instance_view_only" {
+  count = var.enable_ccf_agent ? 1 : 0
+
+  role       = aws_iam_role.app_instance.name
+  policy_arn = "arn:aws:iam::aws:policy/job-function/ViewOnlyAccess"
 }
 
 resource "aws_iam_instance_profile" "app" {
@@ -756,6 +784,9 @@ resource "aws_launch_template" "app" {
   metadata_options {
     http_endpoint = "enabled"
     http_tokens   = "required"
+    # hop limit 2 lets the CCF agent container reach IMDS (container -> host ->
+    # IMDS is one extra hop) so its AWS plugins can use the instance role.
+    http_put_response_hop_limit = 2
   }
 
   block_device_mappings {
@@ -816,6 +847,10 @@ resource "aws_launch_template" "app" {
     ccf_sso_google_hosted_domain       = var.ccf_sso_google_hosted_domain
     ccf_sso_admin_email                = var.ccf_sso_admin_email
     ccf_sso_domain_admins              = var.ccf_sso_domain_admins
+    enable_ccf_agent                   = var.enable_ccf_agent
+    ccf_agent_image                    = var.ccf_agent_image
+    ccf_agent_github_token_arn         = local.ccf_agent_github_token_arn
+    ccf_agent_config                   = var.enable_ccf_agent ? file("${path.module}/files/ccf-agent-config.yml") : ""
   }))
 
   depends_on = [

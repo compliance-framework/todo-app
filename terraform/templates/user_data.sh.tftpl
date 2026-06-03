@@ -65,8 +65,19 @@ SSO_GOOGLE_CLIENT_SECRET_ARN=${jsonencode(ccf_sso_google_client_secret_arn)}
 SSO_GOOGLE_HOSTED_DOMAIN=${jsonencode(ccf_sso_google_hosted_domain)}
 SSO_ADMIN_EMAIL=${jsonencode(ccf_sso_admin_email)}
 SSO_DOMAIN_ADMINS=${jsonencode(ccf_sso_domain_admins)}
+ENABLE_CCF_AGENT=${jsonencode(enable_ccf_agent)}
+CCF_AGENT_IMAGE=${jsonencode(ccf_agent_image)}
+CCF_AGENT_GITHUB_TOKEN_ARN=${jsonencode(ccf_agent_github_token_arn)}
 CCF_ENV
 chmod 0640 /etc/ccf/ccf.env
+%{ if enable_ccf_agent ~}
+
+# CCF agent config (no secrets — tokens are injected via env at runtime)
+cat >/opt/ccf/agent-config.yml <<'CCF_AGENT_CONFIG'
+${ccf_agent_config}
+CCF_AGENT_CONFIG
+chmod 0644 /opt/ccf/agent-config.yml
+%{ endif ~}
 
 /opt/ccf/ccf-bootstrap.sh
 %{ endif ~}

@@ -1,0 +1,191 @@
+daemon: true
+verbosity: 1
+
+agent_evidence:
+  enabled: true
+  interval: 5m
+
+api:
+  url: http://ccf-api:8080
+  # Uncomment this if you want to use signed evidence
+  # needs to be registered in CCF UI prior to using this.
+  # auth:
+  #   client_id: 1853ae11-bdee-4abe-96b4-e9a20796ed6
+  #   client_secret: IKx2XL0YoajJzRDINRWrfq1huhJsAmeRlhy2mggmDo8
+plugins:
+### AWS
+  aws-rds-aurora-psql:
+    schedule: "*/5 * * * *"
+    source: ghcr.io/compliance-framework/plugin-aws-rds-aurora-psql:v0.3.1
+    policies:
+      - ghcr.io/compliance-framework/plugin-aws-rds-aurora-psql-policies:v0.3.0
+    config:
+      default_regions: '["eu-west-2"]'
+      lookback_days: "7"
+      # policy_inputs configures policy thresholds as a JSON string (read as input.policy_inputs by policies).
+      # policy_inputs: '{"minimum_backup_retention_days": 7, "maximum_personal_information_retention_days": 365,
+      #   "maximum_pitr_lag_hours": 24, "approved_snapshot_accounts": [], "fail_on_unknown_snapshot_sharing": true,
+      #   "required_log_exports": ["postgresql"], "require_multi_az": true, "require_snapshot_history": true,
+      #   "require_automated_snapshot": false, "require_access_removal_events": false,
+      #   "require_rds_management_audit_events": false, "require_backup_events": false,
+      #   "require_restore_events": false, "require_capacity_metrics": false,
+      #   "require_enhanced_monitoring": false, "require_deletion_audit_events": false,
+      #   "require_disposal_audit_events": false}'
+  aws-elb:
+    schedule: "*/5 * * * *"
+    source: ghcr.io/compliance-framework/plugin-aws-elb:v0.1.0
+    policies:
+      - ghcr.io/compliance-framework/plugin-aws-elb-loadbalancer-policies:v0.1.0
+      - ghcr.io/compliance-framework/plugin-aws-elb-listener-policies:v0.1.0
+      - ghcr.io/compliance-framework/plugin-aws-elb-targetgroup-policies:v0.1.0
+      - ghcr.io/compliance-framework/plugin-aws-elb-targethealth-policies:v0.1.0
+    config:
+      default_regions: '["eu-west-2"]'
+      lookback_days: "7"
+      api_timeout_seconds: "180"
+      max_concurrency: "1"
+    # policy_data overrides data.* defaults across all four ELB policy bundles.
+    # policy_data:
+    #   # loadbalancer policies (plugin-aws-elb-loadbalancer-policies)
+    #   minimum_availability_zones: 2
+    #   required_owner_tag_keys: [owner, team]
+    #   require_management_audit_events: false
+    #   require_disposal_audit_events: false
+    #   change_review_window_days: 90
+    #   unknown_endpoint_scheme_action: violation  # violation | skip
+    #   # listener policies (plugin-aws-elb-listener-policies)
+    #   approved_ssl_policies:
+    #     - ELBSecurityPolicy-TLS13-1-2-2021-06
+    #     - ELBSecurityPolicy-TLS-1-2-Ext-2018-06
+    #   approved_listener_protocols: []  # e.g. [HTTPS, TLS]
+    #   approved_listener_ports: []      # e.g. [443]
+    #   allowed_plaintext_listener_arns: []
+    #   # target group policies (plugin-aws-elb-targetgroup-policies)
+    #   min_healthy_threshold: 2
+    #   max_unhealthy_threshold: 10
+    #   require_health_check_path_for_http: true
+    #   approved_target_protocols: []  # e.g. [HTTPS]
+    #   approved_target_ports: []      # e.g. [8443]
+    #   # target health policies (plugin-aws-elb-targethealth-policies)
+    #   allowed_unhealthy_target_ids: []  # e.g. [i-0abc123]
+    #   treat_unavailable_as_failure: false
+  aws-ec2:
+    schedule: "*/5 * * * *"
+    source: ghcr.io/compliance-framework/plugin-aws-ec2:v0.3.0
+    policies:
+      - ghcr.io/compliance-framework/plugin-aws-ec2-policies:v0.3.0
+    config:
+      default_regions: '["eu-west-2"]'
+      lookback_days: "90"
+    # policy_data overrides data.* defaults in the ec2 policy bundle.
+    # policy_data:
+    #   required_tags: [Environment, Security, Compliance, Application, "Cost Center", Project, Owner, Name]
+  aws-secretsmanager:
+    schedule: "*/5 * * * *"
+    source: ghcr.io/compliance-framework/plugin-aws-secretsmanager:v0.1.1
+    policies:
+      - ghcr.io/compliance-framework/plugin-aws-secretsmanager-policies:v0.1.1
+    config:
+      default_regions: '["eu-west-2"]'
+      lookback_days: "90"
+    # policy_data overrides data.* defaults in the secretsmanager policy bundle.
+    # policy_data:
+    #   required_owner_tag_keys: [Owner, Team]
+    #   min_recovery_window_days: 7
+    #   require_admin_audit_events: true
+    #   change_review_window_days: 90
+    #   require_integration_type_tag: true
+    #   # vendor credential rotation
+    #   vendor_rotation_max_days: 365
+    #   allowed_unrotated_vendor_arns: []     # exempt specific ARNs from rotation enforcement
+    #   allowed_vendor_partner_accounts: []   # AWS account IDs allowed vendor GetSecretValue access
+    #   # confidential secret policies
+    #   confidential_classification_values: [confidential]
+    #   max_confidential_rotation_days: 90
+    #   min_confidential_recovery_window_days: 30
+    #   require_disposal_record: true
+    #   allowed_cross_account_principals: []  # principals allowed cross-account resource policy access
+    #   # privacy / PI policies
+    #   privacy_scope_values: [pi]
+    #   pi_rotation_max_days: 180
+    #   documented_data_subject_flows: []     # e.g. [customer-onboarding]
+    #   allowed_pi_transfer_regions: []       # e.g. [eu-west-1]
+  # aws-vpc:
+  #   schedule: "*/5 * * * *"
+  #   source: ghcr.io/compliance-framework/plugin-aws-vpc:v0.1.0
+  #   policies:
+  #     - ghcr.io/compliance-framework/plugin-aws-vpc-sg-policies:v0.1.0
+  #     - ghcr.io/compliance-framework/plugin-aws-vpc-nacl-policies:v0.1.0
+  #     - ghcr.io/compliance-framework/plugin-aws-vpc-subnet-policies:v0.1.0
+  #     - ghcr.io/compliance-framework/plugin-aws-vpc-rt-policies:v0.1.0
+  #   config:
+  #     default_regions: '["eu-west-2"]'
+  #     lookback_days: "90"
+
+  dependabot:
+    schedule: "*/10 * * * *"
+    config:
+      token: "" # This token is injected using the CCF_PLUGINS_DEPENDABOT_CONFIG_TOKEN variable in .env
+      organization: compliance-framework
+      included-repositories: "compliance-framework/todo-app"
+      security-team-name: security
+    source: ghcr.io/compliance-framework/plugin-dependabot:v0.6.0
+    policies:
+     - ghcr.io/compliance-framework/plugin-dependabot-policies:v0.5.0
+    labels:
+      tier: vcs
+      team: ccf
+
+  github_compliance_framework:
+    schedule: "*/5 * * * *"
+    config:
+      token: "" # This token is injected using the CCF_PLUGINS_GITHUB_COMPLIANCE_FRAMEWORK_CONFIG_TOKEN variable in .env
+      organization: compliance-framework
+      collect_ip_allow_list: false
+    source: ghcr.io/compliance-framework/plugin-github-settings:v0.4.1
+    policies:
+      - ghcr.io/compliance-framework/plugin-github-settings-policies:v0.4.1
+    labels:
+      tier: vcs
+      team: ccf
+
+  github_repos:
+    schedule: "* * * * *"
+    config:
+      token: "" # This token is injected using the CCF_PLUGINS_GITHUB_REPOSITORIES_CONFIG_TOKEN variable in .env
+      organization: compliance-framework
+      included_repositories: todo-app
+      deployment_lookback_days: "90"
+      only_active_deployments: "true"
+      include_failed_deployments: "true"
+      dependency_health_enabled: "true"
+      dependency_health_max_dependencies: "50"
+      dependency_health_closed_pr_lookback_days: "180"
+      dependency_health_include_unresolved: "true"
+      dependency_health_collect_sbom: "true"
+      dependency_health_pr_interaction_sample_size: "20"
+    policy_data:
+      workflow_names:
+        - main.yml
+      environment_names:
+        - production
+      dependency_health:
+        max_days_since_release: 365
+        max_days_since_commit: 180
+        max_open_prs: 10
+        max_oldest_open_pr_age_days: 30
+        max_median_days_to_close_pr: 30
+        banned_licenses:
+          - BUSL-1.1
+          - SSPL-1.0
+          - PolyForm-Noncommercial-1.0.0
+        allowed_licenses: []
+        require_dependency_sbom: true
+        unknown_health_is_violation: true
+    source: ghcr.io/compliance-framework/plugin-github-repositories:v0.8.1
+    policies:
+     - ghcr.io/compliance-framework/plugin-github-repositories-policies:v0.7.0
+     - ghcr.io/compliance-framework/plugin-github-repositories-dependency-policies:v0.1.1
+    labels:
+      tier: vcs
+      team: ccf

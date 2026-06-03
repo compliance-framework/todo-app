@@ -36,6 +36,10 @@ SSO_GOOGLE_CLIENT_SECRET_ARN="${SSO_GOOGLE_CLIENT_SECRET_ARN:-}"
 SSO_GOOGLE_HOSTED_DOMAIN="${SSO_GOOGLE_HOSTED_DOMAIN:-}"
 SSO_ADMIN_EMAIL="${SSO_ADMIN_EMAIL:-}"
 SSO_DOMAIN_ADMINS="${SSO_DOMAIN_ADMINS:-false}"
+ENABLE_CCF_AGENT="${ENABLE_CCF_AGENT:-false}"
+CCF_AGENT_IMAGE="${CCF_AGENT_IMAGE:-ghcr.io/compliance-framework/agent:0.7.0}"
+CCF_AGENT_GITHUB_TOKEN_ARN="${CCF_AGENT_GITHUB_TOKEN_ARN:-}"
+CCF_AGENT_GITHUB_TOKEN="${CCF_AGENT_GITHUB_TOKEN:-}"
 COMPOSE_VERSION="${COMPOSE_VERSION:-v2.32.4}"
 # Maintenance database used only to issue CREATE DATABASE; RDS always provides it.
 BOOTSTRAP_DB="${BOOTSTRAP_DB:-postgres}"
@@ -114,6 +118,37 @@ resolve_secrets() {
   if [ -n "$SSO_GOOGLE_CLIENT_SECRET_ARN" ]; then
     SSO_GOOGLE_CLIENT_SECRET="$(fetch_secret "$SSO_GOOGLE_CLIENT_SECRET_ARN")"
   fi
+
+  if [ -n "$CCF_AGENT_GITHUB_TOKEN_ARN" ]; then
+    CCF_AGENT_GITHUB_TOKEN="$(fetch_secret "$CCF_AGENT_GITHUB_TOKEN_ARN")"
+  fi
+}
+
+agent_enabled() {
+  [ "$ENABLE_CCF_AGENT" = "true" ]
+}
+
+# Writes the agent env file consumed by the worker-todo compose service. The
+# agent config.yml itself is written by user_data (no secrets); here we only
+# inject the GitHub PAT for the dependabot/github plugins. AWS plugins use the
+# instance role via IMDS, so no AWS keys are written.
+write_agent_env() {
+  agent_enabled || return 0
+
+  if [ ! -f "$CCF_HOME/agent-config.yml" ]; then
+    log "agent enabled but $CCF_HOME/agent-config.yml is missing; skipping agent"
+    ENABLE_CCF_AGENT="false"
+    return 0
+  fi
+
+  cat >"$CCF_HOME/agent.env" <<EOF
+AWS_REGION=${AWS_REGION}
+AWS_DEFAULT_REGION=${AWS_REGION}
+CCF_PLUGINS_DEPENDABOT_CONFIG_TOKEN=${CCF_AGENT_GITHUB_TOKEN}
+CCF_PLUGINS_GITHUB_COMPLIANCE_FRAMEWORK_CONFIG_TOKEN=${CCF_AGENT_GITHUB_TOKEN}
+CCF_PLUGINS_GITHUB_REPOS_CONFIG_TOKEN=${CCF_AGENT_GITHUB_TOKEN}
+EOF
+  chmod 0600 "$CCF_HOME/agent.env"
 }
 
 sso_enabled() {
@@ -261,6 +296,27 @@ ${api_volumes:+$api_volumes
     ports:
       - "${CCF_UI_HOST_PORT}:80"
 EOF
+
+  # Agent (worker) runs in the same compose project, reaching the API by its
+  # service name (ccf-api:8080). AWS plugins use the instance role via IMDS.
+  if agent_enabled; then
+    cat >>"$CCF_HOME/docker-compose.yml" <<EOF
+
+  worker-todo:
+    image: ${CCF_AGENT_IMAGE}
+    hostname: todo-worker-1
+    restart: always
+    depends_on:
+      - ccf-api
+    env_file:
+      - ${CCF_HOME}/agent.env
+    volumes:
+      - ${CCF_HOME}/agent-config.yml:/app/config.yml:ro
+      - ${CCF_HOME}/agent-work:/app/.compliance-framework
+EOF
+    install -d -m 0755 "$CCF_HOME/agent-work"
+  fi
+
   chmod 0644 "$CCF_HOME/docker-compose.yml"
 }
 
@@ -300,6 +356,7 @@ main() {
 
   install -d -m 0755 "$CCF_HOME"
   write_sso_config
+  write_agent_env
   write_config
   write_systemd_unit
 

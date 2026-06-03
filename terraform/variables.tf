@@ -395,3 +395,26 @@ variable "ccf_sso_domain_admins" {
   type        = bool
   default     = false
 }
+
+# CCF agent (assessor) — runs on the same host as a container, collecting
+# evidence via plugins and reporting to the local CCF API. AWS plugins use the
+# instance role (read-only); GitHub/dependabot plugins use a PAT from Secrets
+# Manager. Requires enable_ccf = true.
+variable "enable_ccf_agent" {
+  description = "Run the CCF agent (worker) container on the app host alongside the CCF UI/API. Requires enable_ccf = true."
+  type        = bool
+  default     = false
+}
+
+variable "ccf_agent_image" {
+  description = "Container image for the CCF agent."
+  type        = string
+  default     = "ghcr.io/compliance-framework/agent:0.7.0"
+}
+
+variable "ccf_agent_github_token" {
+  description = "GitHub PAT used by the agent's dependabot, github-settings, and github-repositories plugins. Stored in Secrets Manager and fetched at boot. Leave empty to run only the AWS plugins."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
