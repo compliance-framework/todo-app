@@ -1,17 +1,20 @@
 locals {
-  availability_zone_count = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs), length(data.aws_availability_zones.available.names))
-  name                    = "${var.name_prefix}-${var.environment}"
-  alb_name                = substr(replace(local.name, "_", "-"), 0, 32)
-  alb_logs_bucket_prefix  = "${substr(local.name, 0, 27)}-alb-logs-"
-  domain_name_normalized  = trimprefix(trimsuffix(lower(var.domain_name), "."), "*.")
-  hosted_zone_normalized  = trimsuffix(lower(var.hosted_zone_name), ".")
-  target_group_name       = trimsuffix(substr("${replace(local.name, "_", "-")}-app", 0, 32), "-")
-  vpc_flow_log_group_name = "/aws/vpc/${local.name}/flow-logs"
-  vpc_flow_log_group_arn  = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.vpc_flow_log_group_name}"
+  availability_zone_count    = min(length(var.public_subnet_cidrs), length(var.private_subnet_cidrs), length(data.aws_availability_zones.available.names))
+  name                       = "${var.name_prefix}-${var.environment}"
+  alb_name                   = substr(replace(local.name, "_", "-"), 0, 32)
+  alb_logs_bucket_prefix     = "${substr(local.name, 0, 27)}-alb-logs-"
+  domain_name_normalized     = trimprefix(trimsuffix(lower(var.domain_name), "."), "*.")
+  ccf_domain_name_normalized = trimprefix(trimsuffix(lower(var.ccf_domain_name), "."), "*.")
+  hosted_zone_normalized     = trimsuffix(lower(var.hosted_zone_name), ".")
+  target_group_name          = trimsuffix(substr("${replace(local.name, "_", "-")}-app", 0, 32), "-")
+  vpc_flow_log_group_name    = "/aws/vpc/${local.name}/flow-logs"
+  vpc_flow_log_group_arn     = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.vpc_flow_log_group_name}"
 
   oidc_redirect_url      = "https://${local.domain_name_normalized}/api/auth/oidc/callback"
   oidc_frontend_url      = "https://${local.domain_name_normalized}"
   oidc_client_secret_arn = var.oidc_client_secret == "" ? "" : aws_secretsmanager_secret.oidc_client_secret[0].arn
+
+  ccf_sso_google_client_secret_arn = var.enable_ccf && var.ccf_sso_google_client_secret != "" ? aws_secretsmanager_secret.ccf_sso_google_client_secret[0].arn : ""
 }
 
 data "aws_availability_zones" "available" {
@@ -61,6 +64,25 @@ resource "terraform_data" "input_validation" {
         (var.ec2_ami_architecture == "arm64" && can(regex("linux-arm64\\.bundle$", var.release_signature_bundle_name)))
       )
       error_message = "release_signature_bundle_name must match ec2_ami_architecture and end in .bundle: use a linux-amd64 bundle with x86_64 and a linux-arm64 bundle with arm64."
+    }
+
+    precondition {
+      condition = !var.enable_ccf || (
+        var.ccf_domain_name != "" && (
+          local.ccf_domain_name_normalized == local.hosted_zone_normalized ||
+          endswith(local.ccf_domain_name_normalized, ".${local.hosted_zone_normalized}")
+        )
+      )
+      error_message = "When enable_ccf is true, ccf_domain_name must be set and must equal hosted_zone_name or be a subdomain of it so the ACM SAN is validated in the correct Route53 zone."
+    }
+
+    precondition {
+      condition = !var.enable_ccf || (
+        var.ccf_api_host_port != var.app_port &&
+        var.ccf_ui_host_port != var.app_port &&
+        var.ccf_api_host_port != var.ccf_ui_host_port
+      )
+      error_message = "When enable_ccf is true, ccf_api_host_port, ccf_ui_host_port, and app_port must all be distinct so the CCF containers and the todo-app do not collide on the host."
     }
   }
 }
@@ -329,12 +351,56 @@ resource "aws_vpc_security_group_egress_rule" "alb_app" {
   ip_protocol                  = "tcp"
 }
 
+resource "aws_vpc_security_group_egress_rule" "alb_ccf_api" {
+  count = var.enable_ccf ? 1 : 0
+
+  security_group_id            = aws_security_group.alb.id
+  description                  = "CCF API traffic to EC2"
+  referenced_security_group_id = aws_security_group.app.id
+  from_port                    = var.ccf_api_host_port
+  to_port                      = var.ccf_api_host_port
+  ip_protocol                  = "tcp"
+}
+
+resource "aws_vpc_security_group_egress_rule" "alb_ccf_ui" {
+  count = var.enable_ccf ? 1 : 0
+
+  security_group_id            = aws_security_group.alb.id
+  description                  = "CCF UI traffic to EC2"
+  referenced_security_group_id = aws_security_group.app.id
+  from_port                    = var.ccf_ui_host_port
+  to_port                      = var.ccf_ui_host_port
+  ip_protocol                  = "tcp"
+}
+
 resource "aws_vpc_security_group_ingress_rule" "app_alb" {
   security_group_id            = aws_security_group.app.id
   description                  = "App port from ALB"
   referenced_security_group_id = aws_security_group.alb.id
   from_port                    = var.app_port
   to_port                      = var.app_port
+  ip_protocol                  = "tcp"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "app_alb_ccf_api" {
+  count = var.enable_ccf ? 1 : 0
+
+  security_group_id            = aws_security_group.app.id
+  description                  = "CCF API port from ALB"
+  referenced_security_group_id = aws_security_group.alb.id
+  from_port                    = var.ccf_api_host_port
+  to_port                      = var.ccf_api_host_port
+  ip_protocol                  = "tcp"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "app_alb_ccf_ui" {
+  count = var.enable_ccf ? 1 : 0
+
+  security_group_id            = aws_security_group.app.id
+  description                  = "CCF UI port from ALB"
+  referenced_security_group_id = aws_security_group.alb.id
+  from_port                    = var.ccf_ui_host_port
+  to_port                      = var.ccf_ui_host_port
   ip_protocol                  = "tcp"
 }
 
@@ -526,6 +592,48 @@ resource "aws_lb_target_group" "app" {
   }
 }
 
+resource "aws_lb_target_group" "ccf_api" {
+  count = var.enable_ccf ? 1 : 0
+
+  name     = trimsuffix(substr("${replace(local.name, "_", "-")}-ccf-api", 0, 32), "-")
+  port     = var.ccf_api_host_port
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.app.id
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    matcher             = "200"
+    path                = "/api/health"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    timeout             = 5
+    unhealthy_threshold = 3
+  }
+}
+
+resource "aws_lb_target_group" "ccf_ui" {
+  count = var.enable_ccf ? 1 : 0
+
+  name     = trimsuffix(substr("${replace(local.name, "_", "-")}-ccf-ui", 0, 32), "-")
+  port     = var.ccf_ui_host_port
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.app.id
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    matcher             = "200"
+    path                = "/"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    timeout             = 5
+    unhealthy_threshold = 3
+  }
+}
+
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.app.arn
   port              = 443
@@ -536,6 +644,51 @@ resource "aws_lb_listener" "https" {
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
+# CCF API: requests to the CCF host under /api/* go to the API container.
+# The CCF API natively serves all routes under /api, so no path rewrite is needed.
+resource "aws_lb_listener_rule" "ccf_api" {
+  count = var.enable_ccf ? 1 : 0
+
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.ccf_api[0].arn
+  }
+
+  condition {
+    host_header {
+      values = [var.ccf_domain_name]
+    }
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api", "/api/*"]
+    }
+  }
+}
+
+# CCF UI: any other request to the CCF host goes to the static UI container.
+resource "aws_lb_listener_rule" "ccf_ui" {
+  count = var.enable_ccf ? 1 : 0
+
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 20
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.ccf_ui[0].arn
+  }
+
+  condition {
+    host_header {
+      values = [var.ccf_domain_name]
+    }
   }
 }
 
@@ -577,6 +730,7 @@ resource "aws_iam_role_policy" "app_instance_secrets" {
             aws_secretsmanager_secret.jwt.arn,
           ],
           aws_secretsmanager_secret.oidc_client_secret[*].arn,
+          aws_secretsmanager_secret.ccf_sso_google_client_secret[*].arn,
         )
       }
     ]
@@ -620,7 +774,10 @@ resource "aws_launch_template" "app" {
     security_groups             = [aws_security_group.app.id]
   }
 
-  user_data = base64encode(templatefile("${path.module}/templates/user_data.sh.tftpl", {
+  # gzip-compress the rendered user_data: cloud-init auto-decompresses gzip
+  # input, and EC2's 16 KB user_data limit applies to the compressed bytes,
+  # which keeps the combined todo-app + CCF bootstrap well under the cap.
+  user_data = base64gzip(templatefile("${path.module}/templates/user_data.sh.tftpl", {
     app_port                           = var.app_port
     aws_region                         = var.aws_region
     bootstrap_script                   = file("${path.module}/scripts/bootstrap.sh")
@@ -646,6 +803,19 @@ resource "aws_launch_template" "app" {
     oidc_redirect_url                  = local.oidc_redirect_url
     oidc_frontend_url                  = local.oidc_frontend_url
     oidc_cookie_secure                 = "true"
+    enable_ccf                         = var.enable_ccf
+    ccf_bootstrap_script               = var.enable_ccf ? file("${path.module}/scripts/ccf-bootstrap.sh") : ""
+    ccf_domain_name                    = var.ccf_domain_name
+    ccf_api_image                      = var.ccf_api_image
+    ccf_ui_image                       = var.ccf_ui_image
+    ccf_api_host_port                  = var.ccf_api_host_port
+    ccf_ui_host_port                   = var.ccf_ui_host_port
+    ccf_db_name                        = var.ccf_db_name
+    ccf_sso_google_client_id           = var.ccf_sso_google_client_id
+    ccf_sso_google_client_secret_arn   = local.ccf_sso_google_client_secret_arn
+    ccf_sso_google_hosted_domain       = var.ccf_sso_google_hosted_domain
+    ccf_sso_admin_email                = var.ccf_sso_admin_email
+    ccf_sso_domain_admins              = var.ccf_sso_domain_admins
   }))
 
   depends_on = [
@@ -684,12 +854,15 @@ resource "aws_launch_template" "app" {
 }
 
 resource "aws_autoscaling_group" "app" {
-  name                      = local.name
-  min_size                  = 1
-  max_size                  = 1
-  desired_capacity          = 1
-  vpc_zone_identifier       = aws_subnet.private[*].id
-  health_check_type         = "ELB"
+  name                = local.name
+  min_size            = 1
+  max_size            = 1
+  desired_capacity    = 1
+  vpc_zone_identifier = aws_subnet.private[*].id
+  # With CCF co-located, fall back to EC2 health checks so a failing CCF
+  # container cannot mark the whole instance unhealthy and recycle the host
+  # (which would also take the todo-app with it).
+  health_check_type         = var.enable_ccf ? "EC2" : "ELB"
   health_check_grace_period = 600
 
   launch_template {
@@ -730,4 +903,18 @@ resource "aws_autoscaling_group" "app" {
 resource "aws_autoscaling_attachment" "app" {
   autoscaling_group_name = aws_autoscaling_group.app.id
   lb_target_group_arn    = aws_lb_target_group.app.arn
+}
+
+resource "aws_autoscaling_attachment" "ccf_api" {
+  count = var.enable_ccf ? 1 : 0
+
+  autoscaling_group_name = aws_autoscaling_group.app.id
+  lb_target_group_arn    = aws_lb_target_group.ccf_api[0].arn
+}
+
+resource "aws_autoscaling_attachment" "ccf_ui" {
+  count = var.enable_ccf ? 1 : 0
+
+  autoscaling_group_name = aws_autoscaling_group.app.id
+  lb_target_group_arn    = aws_lb_target_group.ccf_ui[0].arn
 }

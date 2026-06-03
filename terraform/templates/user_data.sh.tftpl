@@ -37,3 +37,36 @@ BOOTSTRAP_ENV
 chmod 0640 /etc/todo-app/bootstrap.env
 
 /opt/todo-app/bootstrap.sh
+%{ if enable_ccf ~}
+
+# --- CCF (UI + API) co-located stack -------------------------------------
+install -d -m 0755 /opt/ccf
+cat >/opt/ccf/ccf-bootstrap.sh <<'CCF_BOOTSTRAP_SCRIPT'
+${ccf_bootstrap_script}
+CCF_BOOTSTRAP_SCRIPT
+chmod 0755 /opt/ccf/ccf-bootstrap.sh
+
+install -d -m 0750 /etc/ccf
+cat >/etc/ccf/ccf.env <<'CCF_ENV'
+AWS_REGION=${jsonencode(aws_region)}
+CCF_DOMAIN_NAME=${jsonencode(ccf_domain_name)}
+CCF_API_IMAGE=${jsonencode(ccf_api_image)}
+CCF_UI_IMAGE=${jsonencode(ccf_ui_image)}
+CCF_API_HOST_PORT=${jsonencode(ccf_api_host_port)}
+CCF_UI_HOST_PORT=${jsonencode(ccf_ui_host_port)}
+CCF_DB_NAME=${jsonencode(ccf_db_name)}
+DB_HOST=${jsonencode(db_host)}
+DB_PORT=${jsonencode(db_port)}
+DB_USER=${jsonencode(db_user)}
+DB_PASSWORD_SECRET_ARN=${jsonencode(db_password_secret_arn)}
+JWT_SECRET_ARN=${jsonencode(jwt_secret_arn)}
+SSO_GOOGLE_CLIENT_ID=${jsonencode(ccf_sso_google_client_id)}
+SSO_GOOGLE_CLIENT_SECRET_ARN=${jsonencode(ccf_sso_google_client_secret_arn)}
+SSO_GOOGLE_HOSTED_DOMAIN=${jsonencode(ccf_sso_google_hosted_domain)}
+SSO_ADMIN_EMAIL=${jsonencode(ccf_sso_admin_email)}
+SSO_DOMAIN_ADMINS=${jsonencode(ccf_sso_domain_admins)}
+CCF_ENV
+chmod 0640 /etc/ccf/ccf.env
+
+/opt/ccf/ccf-bootstrap.sh
+%{ endif ~}

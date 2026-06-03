@@ -50,6 +50,31 @@ cosign_linux_amd64_sha256 = "REPLACE_WITH_AMD64_SHA256_FROM_RELEASE_PAGE"
 cosign_linux_arm64_sha256 = "REPLACE_WITH_ARM64_SHA256_FROM_RELEASE_PAGE"
 
 # ---------------------------------------------------------------------------
+# CCF (Compliance Framework) co-located stack (optional)
+# ---------------------------------------------------------------------------
+# When enabled, the CCF UI + API containers run on the SAME EC2 host as the
+# todo-app, behind the same ALB on a dedicated hostname, against the existing
+# RDS instance (a separate "ccf" database is created automatically at boot).
+# Recommended: bump ec2_instance_type to t3.small/t3.medium when enable_ccf=true.
+# enable_ccf      = true
+# ccf_domain_name = "ccf.example.com"   # must equal hosted_zone_name or be a subdomain
+# ccf_api_image     = "ghcr.io/compliance-framework/api:0.16.2"  # default
+# ccf_ui_image      = "ghcr.io/compliance-framework/ui:2.9.2"    # default
+# ccf_api_host_port = 8081   # default; must differ from app_port (8080) and ccf_ui_host_port
+# ccf_ui_host_port  = 3000   # default
+# ccf_db_name       = "ccf"  # default
+#
+# CCF SSO (Google only) — when set, the host renders an sso.yaml for the CCF API
+# with Google login enabled (mirrors the local-dev SSO config). The Google OAuth
+# client must authorize https://<ccf_domain_name>/api/auth/sso/callback.
+# The client secret is stored in Secrets Manager and fetched at boot.
+# ccf_sso_google_client_id     = "xxxxxxxx.apps.googleusercontent.com"
+# ccf_sso_google_client_secret = "GOCSPX-xxxxxxxx"
+# ccf_sso_google_hosted_domain = "container-solutions.com"   # hd: -> ccf-authorized-users
+# ccf_sso_admin_email          = "admin@container-solutions.com"  # email: -> ccf-admins (single user)
+# ccf_sso_domain_admins        = true   # every hosted-domain user also gets ccf-admins (broad)
+
+# ---------------------------------------------------------------------------
 # Optional overrides (uncomment to change defaults)
 # ---------------------------------------------------------------------------
 # aws_region    = "eu-west-2"
