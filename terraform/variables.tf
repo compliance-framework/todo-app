@@ -293,3 +293,128 @@ variable "oidc_client_secret" {
   default     = ""
   sensitive   = true
 }
+
+# ---------------------------------------------------------------------------
+# CCF (Compliance Framework) — optional UI + API containers co-located on the
+# same EC2 host as the todo-app, behind the same ALB on a dedicated hostname.
+# All CCF resources are guarded by enable_ccf so the todo-app deploy is a no-op
+# when CCF is disabled.
+# ---------------------------------------------------------------------------
+
+variable "enable_ccf" {
+  description = "Run the CCF UI and API containers on the app host alongside the todo-app. When false, no CCF resources are created."
+  type        = bool
+  default     = false
+}
+
+variable "ccf_domain_name" {
+  description = "Fully-qualified domain name for the CCF stack (e.g. ccf.ccfdemo.com). Must equal hosted_zone_name or be a subdomain of it. Provisioned with a dedicated ACM certificate attached to the ALB HTTPS listener via SNI and routed to the CCF containers. Required when enable_ccf is true."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.ccf_domain_name == "" || can(regex("^([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$", trimspace(var.ccf_domain_name)))
+    error_message = "ccf_domain_name must be empty or a fully-qualified domain name such as ccf.example.com, without a trailing dot."
+  }
+}
+
+variable "ccf_api_image" {
+  description = "Container image for the CCF API, pulled on the host."
+  type        = string
+  default     = "ghcr.io/compliance-framework/api:0.16.2"
+}
+
+variable "ccf_ui_image" {
+  description = "Container image for the CCF UI, pulled on the host."
+  type        = string
+  default     = "ghcr.io/compliance-framework/ui:2.9.2"
+}
+
+variable "ccf_api_host_port" {
+  description = "Host port the CCF API container binds to. Must differ from app_port (used by the todo-app) and from ccf_ui_host_port."
+  type        = number
+  default     = 8081
+
+  validation {
+    condition     = var.ccf_api_host_port >= 1 && var.ccf_api_host_port <= 65535
+    error_message = "ccf_api_host_port must be between 1 and 65535."
+  }
+}
+
+variable "ccf_ui_host_port" {
+  description = "Host port the CCF UI container binds to. Must differ from app_port (used by the todo-app) and from ccf_api_host_port."
+  type        = number
+  default     = 3000
+
+  validation {
+    condition     = var.ccf_ui_host_port >= 1 && var.ccf_ui_host_port <= 65535
+    error_message = "ccf_ui_host_port must be between 1 and 65535."
+  }
+}
+
+variable "ccf_db_name" {
+  description = "Name of the PostgreSQL database created on the existing RDS instance for CCF. Created by the host bootstrap using the RDS master credentials."
+  type        = string
+  default     = "ccf"
+
+  validation {
+    condition     = can(regex("^[A-Za-z_][A-Za-z0-9_]*$", var.ccf_db_name))
+    error_message = "ccf_db_name must be a valid PostgreSQL identifier (letters, digits, underscores; not starting with a digit)."
+  }
+}
+
+# CCF SSO — Google-only, mirroring the local-dev sso.yaml. When the client id is
+# set, the host renders an sso.yaml for the CCF API with Google login enabled.
+variable "ccf_sso_google_client_id" {
+  description = "Google OAuth client ID for CCF SSO. Leave empty to disable CCF SSO."
+  type        = string
+  default     = ""
+}
+
+variable "ccf_sso_google_client_secret" {
+  description = "Google OAuth client secret for CCF SSO. Stored in Secrets Manager and fetched by the host at boot. Leave empty to disable CCF SSO."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "ccf_sso_google_hosted_domain" {
+  description = "Google Workspace hosted domain (hd) whose users are mapped to ccf-authorized-users, matching the local-dev SSO group mapping."
+  type        = string
+  default     = "container-solutions.com"
+}
+
+variable "ccf_sso_admin_email" {
+  description = "Email address mapped to ccf-admins in the CCF SSO group mapping. Leave empty to omit the email-based admin mapping."
+  type        = string
+  default     = ""
+}
+
+variable "ccf_sso_domain_admins" {
+  description = "Grant admin (ccf-admins) to every user in ccf_sso_google_hosted_domain, in addition to ccf-authorized-users. Use with care: all domain users become CCF admins."
+  type        = bool
+  default     = false
+}
+
+# CCF agent (assessor) — runs on the same host as a container, collecting
+# evidence via plugins and reporting to the local CCF API. AWS plugins use the
+# instance role (read-only); GitHub/dependabot plugins use a PAT from Secrets
+# Manager. Requires enable_ccf = true.
+variable "enable_ccf_agent" {
+  description = "Run the CCF agent (worker) container on the app host alongside the CCF UI/API. Requires enable_ccf = true."
+  type        = bool
+  default     = false
+}
+
+variable "ccf_agent_image" {
+  description = "Container image for the CCF agent."
+  type        = string
+  default     = "ghcr.io/compliance-framework/agent:0.7.0"
+}
+
+variable "ccf_agent_github_token" {
+  description = "GitHub PAT used by the agent's dependabot, github-settings, and github-repositories plugins. Stored in Secrets Manager and fetched at boot. Leave empty to run only the AWS plugins."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
