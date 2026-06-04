@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/compliance-framework/todo-app/compare/v0.5.1...v0.6.0) (2026-06-04)
+
+
+### Features
+
+* ccf with todo app ([#47](https://github.com/compliance-framework/todo-app/issues/47)) ([3b73cbb](https://github.com/compliance-framework/todo-app/commit/3b73cbb68184ac19226238ae34682d652f8ee8ad))
+
 ## [0.5.1](https://github.com/compliance-framework/todo-app/compare/v0.5.0...v0.5.1) (2026-05-27)
 
 
